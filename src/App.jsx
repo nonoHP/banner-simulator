@@ -131,11 +131,13 @@ const INITIAL_FONT_CATALOG = [
 ];
 
 const SIZE_PRESETS = [
+  { label: '600 × 100 cm (超ワイド・デフォルト)', width: 600, height: 100, desc: 'フェンスやスタジアムの大型応援幕に' },
   { label: '180 × 90 cm (定番・標準)', width: 180, height: 90, desc: '2〜3人で持つ・屋内掲示に最適' },
   { label: '240 × 90 cm (人気・ワイド)', width: 240, height: 90, desc: '体育館や屋外フェンスの定番サイズ' },
   { label: '300 × 100 cm (大型・迫力)', width: 300, height: 100, desc: 'サッカー・野球など広い屋外会場向け' },
   { label: '120 × 60 cm (コンパクト)', width: 120, height: 60, desc: '1〜2人で手軽に持てるサイズ' },
   { label: '360 × 120 cm (特大サイズ)', width: 360, height: 120, desc: '大人数での記念撮影・スタジアム用' },
+  { label: '800 × 120 cm (ビッグサイズ)', width: 800, height: 120, desc: '大規模会場・長い横断幕向け' },
   { label: '90 × 180 cm (縦長・懸垂幕)', width: 90, height: 180, desc: '縦書きスローガンや垂れ幕に' },
 ];
 
@@ -164,8 +166,8 @@ const AI_SPORT_CHIPS = [
 const TEMPLATES = [
   {
     name: 'Lefty sniper AKIRA（白地×黒・赤）',
-    width: 340,
-    height: 60,
+    width: 600,
+    height: 100,
     bg: {
       type: 'solid',
       color1: '#ffffff',
@@ -183,42 +185,42 @@ const TEMPLATES = [
         text: 'Lefty sniper',
         x: 33,
         y: 38,
-        fontSize: 38,
+        fontSize: 64,
         fontId: 'anton',
         color: '#171717',
         strokeColor: '#ffffff',
         strokeWidth: 0,
         shadow: false,
         isVertical: false,
-        letterSpacing: 1,
+        letterSpacing: 2,
       },
       {
         id: 't2',
         text: 'AKIRA',
         x: 82,
         y: 38,
-        fontSize: 38,
+        fontSize: 64,
         fontId: 'anton',
         color: '#e62a1a',
         strokeColor: '#ffffff',
         strokeWidth: 0,
         shadow: false,
         isVertical: false,
-        letterSpacing: 1,
+        letterSpacing: 2,
       },
       {
         id: 't3',
         text: 'TOKYO-MACH',
         x: 45,
         y: 83,
-        fontSize: 13,
+        fontSize: 22,
         fontId: 'anton',
         color: '#171717',
         strokeColor: '#ffffff',
         strokeWidth: 0,
         shadow: false,
         isVertical: false,
-        letterSpacing: 1,
+        letterSpacing: 2,
       },
     ]
   },
@@ -967,7 +969,7 @@ export default function App() {
       setBannerHeight(nextHeight);
       showToast(`横幅${bannerWidth}cmに合わせ、縦幅を${nextHeight}cmに調整しました`);
     } else {
-      const nextWidth = Math.max(60, Math.min(600, Math.round(bannerHeight * ratio)));
+      const nextWidth = Math.max(60, Math.min(1000, Math.round(bannerHeight * ratio)));
       setBannerWidth(nextWidth);
       showToast(`縦幅${bannerHeight}cmに合わせ、横幅を${nextWidth}cmに調整しました`);
     }
@@ -3910,15 +3912,15 @@ export default function App() {
 
                   <div>
                     <div className="flex justify-between items-center text-xs mb-1">
-                      <span className="font-bold text-slate-700">横幅 (W): 60〜600cm</span>
+                      <span className="font-bold text-slate-700">横幅 (W): 60〜1000cm</span>
                       <div className="flex items-center gap-1">
                         <input
                           type="number"
                           min="60"
-                          max="600"
+                          max="1000"
                           value={bannerWidth}
                           onChange={(e) =>
-                            setBannerWidth(Math.max(60, Math.min(600, Number(e.target.value) || 60)))
+                            setBannerWidth(Math.max(60, Math.min(1000, Number(e.target.value) || 60)))
                           }
                           className="w-16 text-right font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white"
                         />
@@ -3928,7 +3930,7 @@ export default function App() {
                     <input
                       type="range"
                       min="60"
-                      max="600"
+                      max="1000"
                       step="10"
                       value={bannerWidth}
                       onChange={(e) => setBannerWidth(Number(e.target.value))}
