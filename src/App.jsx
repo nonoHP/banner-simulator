@@ -46,7 +46,8 @@ import {
   Undo2,
   Redo2,
   Share2,
-  Link2
+  Link2,
+  PlayCircle
 } from 'lucide-react';
 
 // --- 定数・プリセット定義 ---
@@ -1229,6 +1230,19 @@ export default function App() {
     viewMode,
   ]);
 
+  // 利用説明動画モーダル用ステート
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const tutorialVideoRef = useRef(null);
+  const TUTORIAL_CHAPTERS = [
+    { step: 'STEP 1', title: 'サイト概要', timeLabel: '0:00', startSec: 0 },
+    { step: 'STEP 2', title: '文字・フォント・サイズ', timeLabel: '0:17', startSec: 17.8 },
+    { step: 'STEP 3', title: '配置・整列・選択解除', timeLabel: '0:35', startSec: 35.1 },
+    { step: 'STEP 4', title: '背景色分け・AI提案', timeLabel: '0:54', startSec: 54.0 },
+    { step: 'STEP 5', title: 'サイズ比較＆戻る/進む', timeLabel: '1:11', startSec: 71.5 },
+    { step: 'STEP 6', title: 'お気に入り・4形式保存', timeLabel: '1:30', startSec: 90.0 },
+    { step: 'STEP 7', title: 'スマホ・LINE共有', timeLabel: '1:51', startSec: 111.2 },
+  ];
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3200);
@@ -1489,10 +1503,14 @@ export default function App() {
   }, []);
 
   isModalBlockingShortcutRef.current = Boolean(
-    isShareOpen || isFavoritesOpen || ocrResult || editingFavoriteId
+    isShareOpen || isFavoritesOpen || isTutorialOpen || ocrResult || editingFavoriteId
   );
 
   handleEscapeDeselectRef.current = () => {
+    if (isTutorialOpen) {
+      setIsTutorialOpen(false);
+      return false;
+    }
     if (
       isFontGalleryOpen ||
       isShareOpen ||
@@ -4608,11 +4626,20 @@ ${
             <Ruler className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold tracking-tight flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight flex items-center gap-2 flex-wrap">
               横断幕作成ツール
               <span className="hidden md:inline-block text-xs bg-violet-600/30 text-violet-300 border border-violet-400/40 px-2 py-0.5 rounded-full font-medium">
                 ✨ AIスローガン提案搭載
               </span>
+              <button
+                type="button"
+                onClick={() => setIsTutorialOpen(true)}
+                className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow flex items-center gap-1.5 transition shrink-0"
+                title="音声付きの利用説明動画（約2分）を再生"
+              >
+                <PlayCircle className="w-3.5 h-3.5" />
+                <span>使い方動画</span>
+              </button>
             </h1>
           </div>
         </div>
@@ -8603,6 +8630,90 @@ ${
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 利用説明動画モーダル */}
+      {isTutorialOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
+          onClick={() => setIsTutorialOpen(false)}
+        >
+          <div
+            className="bg-slate-900 text-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-700 max-h-[94vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 sm:px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-lg bg-rose-600/20 text-rose-400 flex items-center justify-center">
+                  <PlayCircle className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-white">
+                    横断幕作成ツール 使い方ガイド動画
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    日本語音声ナレーション付き・基本操作からLINE共有まで（約2分）
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTutorialOpen(false)}
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center text-base font-bold transition"
+                aria-label="動画モーダルを閉じる"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 sm:p-4 overflow-y-auto space-y-3">
+              <div className="bg-black rounded-xl overflow-hidden border border-slate-800 shadow-lg">
+                <video
+                  ref={tutorialVideoRef}
+                  src={`${import.meta.env.BASE_URL}tutorial.mp4`}
+                  controls
+                  autoPlay
+                  playsInline
+                  preload="metadata"
+                  className="w-full aspect-video max-h-[60vh] mx-auto"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>チャプターからジャンプ</span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    音声が出ない場合はプレーヤーの音量をご確認ください
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {TUTORIAL_CHAPTERS.map((ch) => (
+                    <button
+                      key={ch.step}
+                      type="button"
+                      onClick={() => {
+                        const v = tutorialVideoRef.current;
+                        if (v) {
+                          v.currentTime = ch.startSec;
+                          v.play().catch(() => {});
+                        }
+                      }}
+                      className="text-left px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/60 transition flex flex-col gap-0.5"
+                    >
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-rose-400">{ch.step}</span>
+                        <span className="text-slate-400">{ch.timeLabel}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-slate-100 truncate">
+                        {ch.title}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
