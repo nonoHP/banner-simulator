@@ -334,6 +334,52 @@ const getBgColorsFromConfig = (cfg) => {
   return [c1, c2];
 };
 
+const getDefaultBgSplits = (colorCount) => {
+  if (colorCount <= 1) return [];
+  return Array.from({ length: colorCount - 1 }, (_, i) =>
+    Math.round(((i + 1) / colorCount) * 1000) / 10
+  );
+};
+
+const getBgSplitPositions = (cfg, colorCount) => {
+  if (colorCount <= 1) return [];
+  const expectedLen = colorCount - 1;
+  if (Array.isArray(cfg?.colorSplits) && cfg.colorSplits.length === expectedLen) {
+    const normalized = [];
+    for (let i = 0; i < expectedLen; i++) {
+      const minV = i === 0 ? 1 : normalized[i - 1] + 1;
+      const maxV = 100 - (expectedLen - i);
+      const raw = Number(cfg.colorSplits[i]);
+      const safe = Number.isFinite(raw) ? raw : ((i + 1) / colorCount) * 100;
+      normalized.push(Math.max(minV, Math.min(maxV, safe)));
+    }
+    return normalized;
+  }
+  return getDefaultBgSplits(colorCount);
+};
+
+const getGradientStopsFromSplits = (colors, splits) => {
+  if (colors.length <= 1) return [0];
+  if (colors.length === 2) {
+    const s = splits[0] ?? 50;
+    return [
+      Math.max(0, Math.min(100, 2 * s - 100)),
+      Math.max(0, Math.min(100, 2 * s)),
+    ];
+  }
+  const rawStops = colors.map((_, idx) => {
+    if (idx === 0) return Math.max(0, Math.min(90, (splits[0] ?? 33.3) * 2 - 100));
+    if (idx === colors.length - 1) {
+      return Math.max(10, Math.min(100, (splits[splits.length - 1] ?? 66.7) * 2));
+    }
+    return ((splits[idx - 1] ?? 0) + (splits[idx] ?? 100)) / 2;
+  });
+  for (let i = 1; i < rawStops.length; i++) {
+    if (rawStops[i] < rawStops[i - 1]) rawStops[i] = rawStops[i - 1];
+  }
+  return rawStops;
+};
+
 const isHexLightColor = (hex) => {
   if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
   const r = parseInt(hex.slice(1, 3), 16);
@@ -2313,6 +2359,9 @@ ${
     const grommets = curBgConfig.grommets ? getGrommetPositions(w, h) : [];
     const bw = curBgConfig.borderWidth;
     const bgColors = getBgColorsFromConfig(curBgConfig);
+    const bgSplits = getBgSplitPositions(curBgConfig, bgColors.length);
+    const bgBounds = [0, ...bgSplits, 100];
+    const gradStops = getGradientStopsFromSplits(bgColors, bgSplits);
     const patternColor = getEffectivePatternColor(curBgConfig, bgColors);
     const patternAlphaMul = curBgConfig.patternStrength ?? 1;
     const patAlpha = (base) => Math.min(0.85, base * patternAlphaMul);
@@ -2320,7 +2369,10 @@ ${
     const stripeUnitW = w / stripeDensity;
     const stripeUnitH = h / stripeDensity;
     const stripeUnitD = Math.max(8, Math.min(w, h) * (3.2 / stripeDensity));
-    const diagSkew = Math.min(w * 0.14, h * 0.65);
+    const stripeOffsetPct = curBgConfig.stripeOffset ?? 0;
+    const stripeDiagAngle = curBgConfig.stripeAngle ?? 35;
+    const diagSkewPct = curBgConfig.splitDiagSkew ?? 14;
+    const diagSkew = Math.min(w * 0.45, h * 2.2) * (diagSkewPct / 45);
     const patBase = Math.max(8, Math.min(w, h) * 0.22);
 
     const getPreserveAspectRatio = (fitMode) => {
@@ -2402,7 +2454,7 @@ ${
             {bgColors.map((c, idx) => (
               <stop
                 key={idx}
-                offset={`${(idx / Math.max(1, bgColors.length - 1)) * 100}%`}
+                offset={`${gradStops[idx]}%`}
                 stopColor={c}
               />
             ))}
@@ -2412,7 +2464,7 @@ ${
             {bgColors.map((c, idx) => (
               <stop
                 key={idx}
-                offset={`${(idx / Math.max(1, bgColors.length - 1)) * 100}%`}
+                offset={`${gradStops[idx]}%`}
                 stopColor={c}
               />
             ))}
@@ -2420,18 +2472,21 @@ ${
 
           <pattern
             id={`${idPrefix}-bg-stripe-v`}
+            x={(stripeOffsetPct / 100) * stripeUnitW}
+            y="0"
             width={stripeUnitW}
             height={h}
             patternUnits="userSpaceOnUse"
           >
             {bgColors.map((c, idx) => {
-              const bandW = stripeUnitW / bgColors.length;
+              const segStart = (bgBounds[idx] / 100) * stripeUnitW;
+              const segW = ((bgBounds[idx + 1] - bgBounds[idx]) / 100) * stripeUnitW;
               return (
                 <rect
                   key={idx}
-                  x={bandW * idx}
+                  x={segStart}
                   y="0"
-                  width={bandW + 0.1}
+                  width={segW + 0.1}
                   height={h}
                   fill={c}
                 />
@@ -2441,19 +2496,22 @@ ${
 
           <pattern
             id={`${idPrefix}-bg-stripe-h`}
+            x="0"
+            y={(stripeOffsetPct / 100) * stripeUnitH}
             width={w}
             height={stripeUnitH}
             patternUnits="userSpaceOnUse"
           >
             {bgColors.map((c, idx) => {
-              const bandH = stripeUnitH / bgColors.length;
+              const segStart = (bgBounds[idx] / 100) * stripeUnitH;
+              const segH = ((bgBounds[idx + 1] - bgBounds[idx]) / 100) * stripeUnitH;
               return (
                 <rect
                   key={idx}
                   x="0"
-                  y={bandH * idx}
+                  y={segStart}
                   width={w}
-                  height={bandH + 0.1}
+                  height={segH + 0.1}
                   fill={c}
                 />
               );
@@ -2464,17 +2522,18 @@ ${
             id={`${idPrefix}-bg-stripe-diag`}
             width={stripeUnitD}
             height={stripeUnitD}
-            patternTransform="rotate(35 0 0)"
+            patternTransform={`rotate(${stripeDiagAngle} 0 0) translate(${(stripeOffsetPct / 100) * stripeUnitD}, 0)`}
             patternUnits="userSpaceOnUse"
           >
             {bgColors.map((c, idx) => {
-              const bandD = stripeUnitD / bgColors.length;
+              const segStart = (bgBounds[idx] / 100) * stripeUnitD;
+              const segD = ((bgBounds[idx + 1] - bgBounds[idx]) / 100) * stripeUnitD;
               return (
                 <rect
                   key={idx}
-                  x={bandD * idx}
+                  x={segStart}
                   y="0"
-                  width={bandD + 0.1}
+                  width={segD + 0.1}
                   height={stripeUnitD}
                   fill={c}
                 />
@@ -2659,13 +2718,15 @@ ${
           ) : curBgConfig.type === 'split_lr' ? (
             <g>
               {bgColors.map((c, idx) => {
-                const segW = w / bgColors.length;
+                const startX = (bgBounds[idx] / 100) * w;
+                const endX = (bgBounds[idx + 1] / 100) * w;
+                const segW = Math.max(0, endX - startX);
                 return (
                   <rect
                     key={idx}
-                    x={segW * idx}
+                    x={startX}
                     y="0"
-                    width={segW + 0.25}
+                    width={idx < bgColors.length - 1 ? segW + 0.25 : segW}
                     height={h}
                     fill={c}
                   />
@@ -2675,14 +2736,16 @@ ${
           ) : curBgConfig.type === 'split_tb' ? (
             <g>
               {bgColors.map((c, idx) => {
-                const segH = h / bgColors.length;
+                const startY = (bgBounds[idx] / 100) * h;
+                const endY = (bgBounds[idx + 1] / 100) * h;
+                const segH = Math.max(0, endY - startY);
                 return (
                   <rect
                     key={idx}
                     x="0"
-                    y={segH * idx}
+                    y={startY}
                     width={w}
-                    height={segH + 0.25}
+                    height={idx < bgColors.length - 1 ? segH + 0.25 : segH}
                     fill={c}
                   />
                 );
@@ -2691,15 +2754,16 @@ ${
           ) : curBgConfig.type === 'split_diag' ? (
             <g>
               <rect x="0" y="0" width={w} height={h} fill={bgColors[0]} />
-              {bgColors.slice(1).map((c, idx) => {
-                const divX = w * ((idx + 1) / bgColors.length);
+              {bgSplits.map((splitPct, idx) => {
+                const divX = w * (splitPct / 100);
                 const topX = divX + diagSkew / 2;
                 const botX = divX - diagSkew / 2;
+                const rightEdge = Math.max(w, topX, botX) + 10;
                 return (
                   <polygon
                     key={idx}
-                    points={`${topX},0 ${w},0 ${w},${h} ${botX},${h}`}
-                    fill={c}
+                    points={`${topX},0 ${rightEdge},0 ${rightEdge},${h} ${botX},${h}`}
+                    fill={bgColors[idx + 1]}
                   />
                 );
               })}
@@ -5049,13 +5113,36 @@ ${
                 {/* 背景・枠デザイン設定 */}
                 {(() => {
                   const curBgColors = getBgColorsFromConfig(bgConfig);
-                  const updateBgColors = (nextColors) =>
+                  const curBgSplits = getBgSplitPositions(bgConfig, curBgColors.length);
+                  const updateBgColors = (nextColors, nextSplits = null) =>
+                    setBgConfig((prev) => {
+                      const prevColors = getBgColorsFromConfig(prev);
+                      const resolvedSplits = Array.isArray(nextSplits)
+                        ? nextSplits
+                        : prevColors.length === nextColors.length &&
+                            Array.isArray(prev.colorSplits) &&
+                            prev.colorSplits.length === nextColors.length - 1
+                          ? prev.colorSplits
+                          : getDefaultBgSplits(nextColors.length);
+                      return {
+                        ...prev,
+                        colors: nextColors,
+                        color1: nextColors[0] || prev.color1,
+                        color2: nextColors[1] || nextColors[0] || prev.color2,
+                        colorSplits: resolvedSplits,
+                      };
+                    });
+                  const updateBgSplitAt = (splitIdx, nextRaw) => {
+                    const nextSplits = [...curBgSplits];
+                    const minV = splitIdx === 0 ? 1 : nextSplits[splitIdx - 1] + 1;
+                    const maxV =
+                      splitIdx === nextSplits.length - 1 ? 99 : nextSplits[splitIdx + 1] - 1;
+                    nextSplits[splitIdx] = Math.max(minV, Math.min(maxV, Number(nextRaw)));
                     setBgConfig((prev) => ({
                       ...prev,
-                      colors: nextColors,
-                      color1: nextColors[0] || prev.color1,
-                      color2: nextColors[1] || nextColors[0] || prev.color2,
+                      colorSplits: nextSplits,
                     }));
+                  };
                   const handleSelectBgType = (nextType) => {
                     if (
                       nextType !== 'solid' &&
@@ -5153,7 +5240,13 @@ ${
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => updateBgColors([...curBgColors].reverse())}
+                                onClick={() => {
+                                  const reversedSplits = curBgSplits
+                                    .slice()
+                                    .reverse()
+                                    .map((s) => Math.round((100 - s) * 10) / 10);
+                                  updateBgColors([...curBgColors].reverse(), reversedSplits);
+                                }}
                                 className="text-[11px] bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
                                 title="色の順番を左右/上下反転"
                               >
@@ -5289,32 +5382,209 @@ ${
                             </div>
                           )}
 
+                          {/* 境界位置・割合・傾き調整 */}
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-slate-700">
+                                {bgConfig.type === 'split_lr'
+                                  ? '左右分けの境界位置'
+                                  : bgConfig.type === 'split_tb'
+                                    ? '上下分けの境界位置'
+                                    : bgConfig.type === 'split_diag'
+                                      ? '斜め分けの境界位置・傾き'
+                                      : bgConfig.type === 'gradient'
+                                        ? 'グラデーションの境界位置'
+                                        : '各色の幅バランス（%）'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBgConfig((prev) => ({
+                                    ...prev,
+                                    colorSplits: getDefaultBgSplits(curBgColors.length),
+                                    splitDiagSkew: 14,
+                                    stripeOffset: 0,
+                                    stripeAngle: 35,
+                                  }))
+                                }
+                                className="text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+                              >
+                                位置をリセット
+                              </button>
+                            </div>
+
+                            {/* 2色時の位置ショートカットチップ */}
+                            {curBgColors.length === 2 && (
+                              <div className="flex flex-wrap gap-1">
+                                {[15, 25, 35, 50, 65, 75, 85].map((pct) => {
+                                  const isActive = Math.round(curBgSplits[0] ?? 50) === pct;
+                                  return (
+                                    <button
+                                      key={pct}
+                                      type="button"
+                                      onClick={() => updateBgSplitAt(0, pct)}
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded border transition ${
+                                        isActive
+                                          ? 'bg-sky-600 border-sky-600 text-white'
+                                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      {pct === 50 ? '50% (中央)' : `${pct}%`}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* 各境目スライダー */}
+                            <div className="space-y-2">
+                              {curBgSplits.map((splitVal, sIdx) => (
+                                <div key={sIdx} className="space-y-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold text-slate-600 flex items-center gap-1.5">
+                                      <span>境目 {sIdx + 1}</span>
+                                      <span className="inline-flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">
+                                        <span
+                                          className="w-2.5 h-2.5 rounded-full border border-slate-300"
+                                          style={{ backgroundColor: curBgColors[sIdx] }}
+                                        />
+                                        <span className="text-[9px] text-slate-400">▶</span>
+                                        <span
+                                          className="w-2.5 h-2.5 rounded-full border border-slate-300"
+                                          style={{ backgroundColor: curBgColors[sIdx + 1] }}
+                                        />
+                                      </span>
+                                    </span>
+                                    <span className="text-sky-700 font-bold">
+                                      {Math.round(splitVal)}%
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="99"
+                                    step="1"
+                                    value={Math.round(splitVal)}
+                                    onChange={(e) => updateBgSplitAt(sIdx, e.target.value)}
+                                    className="w-full accent-sky-600"
+                                    aria-label={`境目 ${sIdx + 1} の位置`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 斜め分け：傾き調整 */}
+                            {bgConfig.type === 'split_diag' && (
+                              <div className="pt-1.5 border-t border-slate-100">
+                                <div className="flex justify-between text-[11px] mb-1">
+                                  <span className="font-bold text-slate-600">
+                                    斜めの傾き（向き・角度）
+                                  </span>
+                                  <span className="text-sky-700 font-bold">
+                                    {(bgConfig.splitDiagSkew ?? 14) === 0
+                                      ? '0 (垂直)'
+                                      : `${(bgConfig.splitDiagSkew ?? 14) > 0 ? '+' : ''}${bgConfig.splitDiagSkew ?? 14}`}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="-45"
+                                  max="45"
+                                  step="1"
+                                  value={bgConfig.splitDiagSkew ?? 14}
+                                  onChange={(e) =>
+                                    setBgConfig({
+                                      ...bgConfig,
+                                      splitDiagSkew: Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-full accent-sky-600"
+                                  aria-label="斜め分けの傾き"
+                                />
+                              </div>
+                            )}
+                          </div>
+
                           {(bgConfig.type === 'stripe_v' ||
                             bgConfig.type === 'stripe_h' ||
                             bgConfig.type === 'stripe_diag') && (
-                            <div>
-                              <div className="flex justify-between text-xs mb-1">
-                                <span className="font-bold text-slate-700">
-                                  しましまの細かさ（繰り返し数）
-                                </span>
-                                <span className="text-sky-700 font-bold">
-                                  {bgConfig.stripeDensity ?? 6}
-                                </span>
+                            <div className="space-y-2.5 bg-white p-2.5 rounded-lg border border-slate-200">
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="font-bold text-slate-700">
+                                    しましまの細かさ（繰り返し数）
+                                  </span>
+                                  <span className="text-sky-700 font-bold">
+                                    {bgConfig.stripeDensity ?? 6}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="2"
+                                  max="20"
+                                  step="1"
+                                  value={bgConfig.stripeDensity ?? 6}
+                                  onChange={(e) =>
+                                    setBgConfig({
+                                      ...bgConfig,
+                                      stripeDensity: Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-full accent-sky-600"
+                                />
                               </div>
-                              <input
-                                type="range"
-                                min="2"
-                                max="20"
-                                step="1"
-                                value={bgConfig.stripeDensity ?? 6}
-                                onChange={(e) =>
-                                  setBgConfig({
-                                    ...bgConfig,
-                                    stripeDensity: Number(e.target.value),
-                                  })
-                                }
-                                className="w-full accent-sky-600"
-                              />
+                              <div>
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="font-bold text-slate-700">
+                                    しましまの位置（開始位置ズレ）
+                                  </span>
+                                  <span className="text-sky-700 font-bold">
+                                    {bgConfig.stripeOffset ?? 0}%
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  value={bgConfig.stripeOffset ?? 0}
+                                  onChange={(e) =>
+                                    setBgConfig({
+                                      ...bgConfig,
+                                      stripeOffset: Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-full accent-sky-600"
+                                  aria-label="しましまの位置ズレ"
+                                />
+                              </div>
+                              {bgConfig.type === 'stripe_diag' && (
+                                <div>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="font-bold text-slate-700">
+                                      斜めの角度
+                                    </span>
+                                    <span className="text-sky-700 font-bold">
+                                      {bgConfig.stripeAngle ?? 35}°
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="5"
+                                    max="175"
+                                    step="1"
+                                    value={bgConfig.stripeAngle ?? 35}
+                                    onChange={(e) =>
+                                      setBgConfig({
+                                        ...bgConfig,
+                                        stripeAngle: Number(e.target.value),
+                                      })
+                                    }
+                                    className="w-full accent-sky-600"
+                                    aria-label="斜めしましまの角度"
+                                  />
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
