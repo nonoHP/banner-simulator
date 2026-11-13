@@ -42,7 +42,9 @@ import {
   ScanText,
   Camera,
   Star,
-  Heart
+  Heart,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 
 // --- 定数・プリセット定義 ---
@@ -663,6 +665,182 @@ export default function App() {
 
   // 通知メッセージ用
   const [toastMsg, setToastMsg] = useState(null);
+
+  // --- Undo / Redo（ひとつ前に戻る / ひとつ先に進む）履歴管理 ---
+  const createDesignSnapshot = () => ({
+    bannerWidth,
+    bannerHeight,
+    bgConfig,
+    bgImage,
+    imageLayers,
+    texts,
+    showTextsOnBanner,
+  });
+
+  const historyRef = useRef(null);
+  if (!historyRef.current) {
+    const initialSnap = {
+      bannerWidth: TEMPLATES[0].width,
+      bannerHeight: TEMPLATES[0].height,
+      bgConfig: TEMPLATES[0].bg,
+      bgImage: null,
+      imageLayers: [],
+      texts: TEMPLATES[0].texts,
+      showTextsOnBanner: true,
+    };
+    historyRef.current = {
+      past: [],
+      future: [],
+      committed: initialSnap,
+      committedKey: JSON.stringify(initialSnap),
+      isApplying: false,
+      timer: null,
+    };
+  }
+  const [historyFlags, setHistoryFlags] = useState({ canUndo: false, canRedo: false });
+
+  const applyDesignSnapshot = (snap) => {
+    historyRef.current.isApplying = true;
+    setBannerWidth(snap.bannerWidth);
+    setBannerHeight(snap.bannerHeight);
+    setBgConfig(snap.bgConfig);
+    setBgImage(snap.bgImage);
+    setImageLayers(snap.imageLayers);
+    setTexts(snap.texts);
+    setShowTextsOnBanner(snap.showTextsOnBanner);
+    if (snap.texts.length > 0 && !snap.texts.some((t) => t.id === selectedTextId)) {
+      setSelectedTextId(snap.texts[0].id);
+    }
+    setTimeout(() => {
+      historyRef.current.isApplying = false;
+    }, 0);
+  };
+
+  const handleUndo = () => {
+    const h = historyRef.current;
+    if (h.timer) {
+      clearTimeout(h.timer);
+      h.timer = null;
+    }
+    const currentSnap = createDesignSnapshot();
+    const currentKey = JSON.stringify(currentSnap);
+
+    if (currentKey !== h.committedKey) {
+      h.future.push(currentSnap);
+      applyDesignSnapshot(h.committed);
+      setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
+      return;
+    }
+
+    if (h.past.length === 0) return;
+    const prevSnap = h.past.pop();
+    h.future.push(h.committed);
+    h.committed = prevSnap;
+    h.committedKey = JSON.stringify(prevSnap);
+    applyDesignSnapshot(prevSnap);
+    setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
+  };
+
+  const handleRedo = () => {
+    const h = historyRef.current;
+    if (h.timer) {
+      clearTimeout(h.timer);
+      h.timer = null;
+    }
+    if (h.future.length === 0) return;
+    const nextSnap = h.future.pop();
+    h.past.push(h.committed);
+    h.committed = nextSnap;
+    h.committedKey = JSON.stringify(nextSnap);
+    applyDesignSnapshot(nextSnap);
+    setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
+  };
+
+  const handleUndoRef = useRef(handleUndo);
+  const handleRedoRef = useRef(handleRedo);
+  handleUndoRef.current = handleUndo;
+  handleRedoRef.current = handleRedo;
+
+  useEffect(() => {
+    const h = historyRef.current;
+    if (h.isApplying) return;
+    if (h.timer) {
+      clearTimeout(h.timer);
+      h.timer = null;
+    }
+    if (draggingId) return;
+
+    const currentSnap = createDesignSnapshot();
+    const currentKey = JSON.stringify(currentSnap);
+    if (currentKey === h.committedKey) {
+      setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
+      return;
+    }
+
+    setHistoryFlags({ canUndo: true, canRedo: h.future.length > 0 });
+
+    h.timer = setTimeout(() => {
+      if (h.isApplying) return;
+      const latestSnap = createDesignSnapshot();
+      const latestKey = JSON.stringify(latestSnap);
+      if (latestKey !== h.committedKey) {
+        h.past.push(h.committed);
+        if (h.past.length > 60) h.past.shift();
+        h.committed = latestSnap;
+        h.committedKey = latestKey;
+        h.future = [];
+        setHistoryFlags({ canUndo: h.past.length > 0, canRedo: false });
+      }
+      h.timer = null;
+    }, 300);
+
+    return () => {
+      if (h.timer) {
+        clearTimeout(h.timer);
+        h.timer = null;
+      }
+    };
+  }, [
+    bannerWidth,
+    bannerHeight,
+    bgConfig,
+    bgImage,
+    imageLayers,
+    texts,
+    showTextsOnBanner,
+    draggingId,
+  ]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const isMod = (e.ctrlKey || e.metaKey) && !e.altKey;
+      if (!isMod) return;
+
+      const active = document.activeElement;
+      const isTextEditing =
+        active &&
+        (active.tagName === 'TEXTAREA' ||
+          (active.tagName === 'INPUT' &&
+            !['range', 'checkbox', 'radio', 'color', 'button', 'submit', 'file'].includes(
+              active.type
+            )));
+      if (isTextEditing) return;
+
+      const key = (e.key || '').toLowerCase();
+      const isZ = key === 'z' || e.code === 'KeyZ';
+      const isY = key === 'y' || e.code === 'KeyY';
+
+      if (isZ && !e.shiftKey) {
+        e.preventDefault();
+        handleUndoRef.current?.();
+      } else if (isY || (isZ && e.shiftKey)) {
+        e.preventDefault();
+        handleRedoRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -3380,6 +3558,30 @@ ${
             >
               <Users className="w-3.5 h-3.5" />
               サイズ感のみ
+            </button>
+          </div>
+
+          {/* 戻る・進む（Undo / Redo）ボタン */}
+          <div className="flex items-center bg-slate-800 p-1 rounded-lg text-xs font-bold gap-0.5">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={!historyFlags.canUndo}
+              className="px-2.5 py-1 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-35 disabled:hover:bg-transparent disabled:cursor-not-allowed transition flex items-center gap-1"
+              title="ひとつ前に戻る (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>戻る</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={!historyFlags.canRedo}
+              className="px-2.5 py-1 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-35 disabled:hover:bg-transparent disabled:cursor-not-allowed transition flex items-center gap-1"
+              title="ひとつ先に進む (Ctrl+Y)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+              <span>進む</span>
             </button>
           </div>
 
