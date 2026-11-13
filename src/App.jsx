@@ -39,10 +39,15 @@ import {
   EyeOff,
   RotateCw,
   ScanText,
-  Camera
+  Camera,
+  Key,
+  ExternalLink
 } from 'lucide-react';
 
 // --- 定数・プリセット定義 ---
+
+const GEMINI_API_KEY_STORAGE = 'banner_sim_gemini_api_key';
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.0-flash'];
 
 const FONT_CATEGORIES = [
   { id: 'all', label: 'すべて' },
@@ -386,6 +391,29 @@ export default function App() {
   const [showGrid, setShowGrid] = useState(false);
 
   // AI文言提案機能用ステート
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    try {
+      return localStorage.getItem(GEMINI_API_KEY_STORAGE) || import.meta.env.VITE_GEMINI_API_KEY || '';
+    } catch {
+      return import.meta.env.VITE_GEMINI_API_KEY || '';
+    }
+  });
+  const [apiKeyDraft, setApiKeyDraft] = useState(() => {
+    try {
+      return localStorage.getItem(GEMINI_API_KEY_STORAGE) || import.meta.env.VITE_GEMINI_API_KEY || '';
+    } catch {
+      return import.meta.env.VITE_GEMINI_API_KEY || '';
+    }
+  });
+  const [showApiKeyPanel, setShowApiKeyPanel] = useState(() => {
+    try {
+      return !(localStorage.getItem(GEMINI_API_KEY_STORAGE) || import.meta.env.VITE_GEMINI_API_KEY);
+    } catch {
+      return !import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  });
+  const [showApiKeyPlain, setShowApiKeyPlain] = useState(false);
+
   const [aiBaseText, setAiBaseText] = useState('最後まであきらめずに走り抜いて勝つ');
   const [aiStyleRequest, setAiStyleRequest] = useState('熱血・力強く、スタジアムで映える表現');
   const [aiSport, setAiSport] = useState('サッカー');
@@ -423,6 +451,213 @@ export default function App() {
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3200);
+  };
+
+  // --- Gemini APIキー管理・共通API呼び出しヘルパー ---
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyDraft.trim();
+    if (!trimmed) {
+      showToast('APIキーを入力してください');
+      return;
+    }
+    try {
+      localStorage.setItem(GEMINI_API_KEY_STORAGE, trimmed);
+    } catch (e) {
+      console.error(e);
+    }
+    setGeminiApiKey(trimmed);
+    setShowApiKeyPanel(false);
+    setAiError(null);
+    setOcrError(null);
+    showToast('Gemini APIキーをブラウザに保存しました');
+  };
+
+  const handleClearApiKey = () => {
+    try {
+      localStorage.removeItem(GEMINI_API_KEY_STORAGE);
+    } catch (e) {
+      console.error(e);
+    }
+    const envKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+    setGeminiApiKey(envKey);
+    setApiKeyDraft(envKey);
+    setShowApiKeyPanel(true);
+    showToast('保存済みのAPIキーを削除しました');
+  };
+
+  /**
+   * Gemini API へリクエストを送信し、JSON レスポンスをパースして返す共通ヘルパー。
+   * モデル未対応時はフォールバックし、一時エラー (429/5xx) のみリトライする。
+   */
+  const callGeminiApi = async (payload) => {
+    const activeKey = (geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY || '').trim();
+    if (!activeKey) {
+      setShowApiKeyPanel(true);
+      throw new Error(
+        'Gemini APIキーが未設定です。上の「Gemini APIキー設定」欄にキーを入力して保存してください。'
+      );
+    }
+
+    let lastErr = null;
+    for (const model of GEMINI_MODELS) {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(activeKey)}`;
+      const delays = [1000, 2000];
+
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            let apiErrMsg = `HTTP ${response.status}`;
+            try {
+              const errBody = await response.json();
+              if (errBody?.error?.message) {
+                apiErrMsg = errBody.error.message;
+              }
+            } catch {
+              // ignore non-JSON error body
+            }
+
+            // APIキー不備・権限エラーはリトライせず即案内
+            if (response.status === 400 || response.status === 401 || response.status === 403) {
+              if (/API key|key not valid|permission|expired|API_KEY/i.test(apiErrMsg)) {
+                setShowApiKeyPanel(true);
+                throw new Error(
+                  `Gemini APIキーが無効または権限不足です（${apiErrMsg}）。正しいキーを再設定してください。`
+                );
+              }
+              lastErr = new Error(`${model}: ${apiErrMsg}`);
+              break;
+            }
+
+            // モデル未対応は次モデルへフォールバック
+            if (response.status === 404) {
+              lastErr = new Error(`${model}: ${apiErrMsg}`);
+              break;
+            }
+
+            // レート制限や一時的サーバーエラーのみ指数バックオフでリトライ
+            if ((response.status === 429 || response.status >= 500) && attempt < delays.length) {
+              await new Promise((r) => setTimeout(r, delays[attempt]));
+              continue;
+            }
+
+            throw new Error(`APIエラー (${response.status}): ${apiErrMsg}`);
+          }
+
+          const result = await response.json();
+          const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!jsonText) {
+            throw new Error('AIからの応答データが空でした。');
+          }
+          return JSON.parse(jsonText);
+        } catch (err) {
+          lastErr = err;
+          if (err.message?.includes('APIキー')) {
+            throw err;
+          }
+          if (attempt < delays.length && err.name === 'TypeError') {
+            await new Promise((r) => setTimeout(r, delays[attempt]));
+            continue;
+          }
+          break;
+        }
+      }
+    }
+
+    throw lastErr || new Error('AI APIの呼び出しに失敗しました。');
+  };
+
+  // APIキー設定UI（AI文言提案・OCRの両タブで共有）
+  const renderGeminiKeyPanel = () => {
+    const hasKey = Boolean((geminiApiKey || '').trim());
+    return (
+      <div
+        className={`rounded-xl border p-3 text-xs space-y-2 ${
+          hasKey
+            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+            : 'bg-amber-50 border-amber-300 text-amber-950'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 font-bold">
+            <Key className={`w-3.5 h-3.5 shrink-0 ${hasKey ? 'text-emerald-600' : 'text-amber-600'}`} />
+            <span>
+              {hasKey ? 'Gemini APIキー設定済み' : 'Gemini APIキー設定（AI機能の利用に必要）'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowApiKeyPanel((prev) => !prev)}
+            className="text-[11px] font-bold underline hover:opacity-80 shrink-0"
+          >
+            {showApiKeyPanel ? '閉じる' : hasKey ? '変更・削除' : 'キーを入力'}
+          </button>
+        </div>
+
+        {showApiKeyPanel && (
+          <div className="space-y-2 pt-1 border-t border-black/10">
+            <p className="text-[11px] leading-relaxed opacity-90">
+              ご自身の Gemini API キーを入力してください。キーはお使いのブラウザ内（localStorage）にのみ保存され、外部サーバーへ保存・公開されることはありません。
+            </p>
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <input
+                  type={showApiKeyPlain ? 'text' : 'password'}
+                  value={apiKeyDraft}
+                  onChange={(e) => setApiKeyDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveApiKey();
+                    }
+                  }}
+                  placeholder="AIza..."
+                  className="w-full rounded-lg border border-slate-300 bg-white pl-2.5 pr-8 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyPlain((prev) => !prev)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  title={showApiKeyPlain ? '隠す' : '表示する'}
+                >
+                  {showApiKeyPlain ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition"
+              >
+                保存
+              </button>
+              {hasKey && (
+                <button
+                  type="button"
+                  onClick={handleClearApiKey}
+                  className="bg-white hover:bg-red-50 text-red-600 border border-red-200 font-bold px-2.5 py-1.5 rounded-lg text-xs shrink-0 transition"
+                >
+                  削除
+                </button>
+              )}
+            </div>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-700 hover:underline"
+            >
+              Google AI Studio でAPIキーを取得する
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // 現在選択中のテキストオブジェクト
@@ -514,9 +749,6 @@ export default function App() {
       const base64Data = dataUrl.split(',')[1];
       const mimeType = file.type || 'image/png';
 
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
       const systemPrompt = `あなたは横断幕（スポーツ応援幕・イベントバナー）の画像解析およびOCRの専門AIです。
 入力された横断幕の画像から、書かれているすべての文字（メインスローガン、サブコピー、チーム名、個人名など）とレイアウト・配色を正確に読み取り、編集可能なデータとして復元するためのJSONを出力してください。
 
@@ -599,36 +831,7 @@ export default function App() {
         },
       };
 
-      const delays = [1000, 2000, 4000, 8000];
-      let parsedData = null;
-      let lastErr = null;
-
-      for (let attempt = 0; attempt <= delays.length; attempt++) {
-        try {
-          const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP status ${response.status}`);
-          }
-          const result = await response.json();
-          const jsonStr = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!jsonStr) throw new Error('Empty OCR response');
-          parsedData = JSON.parse(jsonStr);
-          break;
-        } catch (err) {
-          lastErr = err;
-          if (attempt < delays.length) {
-            await new Promise((r) => setTimeout(r, delays[attempt]));
-          }
-        }
-      }
-
-      if (!parsedData) {
-        throw lastErr || new Error('OCR解析結果を取得できませんでした');
-      }
+      const parsedData = await callGeminiApi(payload);
 
       const fullOcrData = {
         ...parsedData,
@@ -643,7 +846,7 @@ export default function App() {
       applyOcrResultToCanvas(fullOcrData, 'reconstruct');
     } catch (err) {
       console.error('OCR Error:', err);
-      setOcrError('画像のOCR文字解析に失敗しました。別の画像でお試しください。');
+      setOcrError(err.message || '画像のOCR文字解析に失敗しました。別の画像でお試しください。');
       showToast('OCR読み取りに失敗しました');
     } finally {
       setIsOcrLoading(false);
@@ -1033,9 +1236,6 @@ export default function App() {
     setIsAiLoading(true);
     setAiError(null);
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
     const systemPrompt = `あなたはスポーツ応援やイベントの横断幕（バナー）専門のプロコピーライターです。
 ユーザーの「伝えたい元の言葉・思い」「希望する表現テイスト」「競技・用途」をもとに、横断幕に大きく掲げた際に心に響き、視覚的にも映えるスローガン・書き換え案を5つ提案してください。
 各案には以下を含めてください：
@@ -1072,49 +1272,20 @@ export default function App() {
       }
     };
 
-    // 指数バックオフ付きリトライ通信
-    const delays = [1000, 2000, 4000, 8000, 16000];
-    let lastError = null;
-
-    for (let attempt = 0; attempt <= delays.length; attempt++) {
-      try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-          throw new Error(`API HTTP status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!jsonText) {
-          throw new Error('AIからの応答データが空でした。');
-        }
-
-        const parsed = JSON.parse(jsonText);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAiSuggestions(parsed);
-          setIsAiLoading(false);
-          showToast('AIが5つのスローガン案を作成しました！');
-          return;
-        } else {
-          throw new Error('提案データの形式が正しくありません。');
-        }
-      } catch (err) {
-        lastError = err;
-        if (attempt < delays.length) {
-          await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
-        }
+    try {
+      const parsed = await callGeminiApi(payload);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setAiSuggestions(parsed);
+        showToast('AIが5つのスローガン案を作成しました！');
+      } else {
+        throw new Error('提案データの形式が正しくありません。');
       }
+    } catch (err) {
+      console.error(err);
+      setAiError(err.message || 'AI提案の取得中にエラーが発生しました。もう一度お試しください。');
+    } finally {
+      setIsAiLoading(false);
     }
-
-    console.error(lastError);
-    setAiError('AI提案の取得中にエラーが発生しました。もう一度お試しください。');
-    setIsAiLoading(false);
   };
 
   // AI提案をキャンバスへ反映する関数
@@ -3178,6 +3349,7 @@ export default function App() {
             {/* ==================== タブ2: ✨AI文言提案・書き換え ==================== */}
             {activeTab === 'ai' && (
               <div className="space-y-4">
+                {renderGeminiKeyPanel()}
                 <div className="bg-violet-50/80 border border-violet-200 rounded-xl p-3.5 space-y-3.5">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-violet-950 flex items-center gap-1.5">
@@ -3378,6 +3550,8 @@ export default function App() {
                   <p className="text-[11px] text-slate-700 leading-relaxed">
                     横断幕の写真やスクリーンショットをアップロードすると、AIが<strong>「書かれている文言・位置・文字色・背景色・縦書き/横書き」を自動で読み取り、後から文字を自由に書き換えられる状態</strong>に復元します。
                   </p>
+
+                  {renderGeminiKeyPanel()}
 
                   <button
                     type="button"
