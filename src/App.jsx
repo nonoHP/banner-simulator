@@ -67,13 +67,18 @@ const INITIAL_FONT_CATALOG = [
   { id: 'yuji-boku', name: '佑字 朴 (味わい深い筆文字)', googleFamily: 'Yuji+Boku', family: "'Yuji Boku', serif", weight: '400', category: 'brush', tags: '筆 毛筆 渋い 和風 yuji boku' },
   { id: 'reggae', name: 'レゲエ One (鋭い和風・闘魂)', googleFamily: 'Reggae+One', family: "'Reggae One', cursive", weight: '400', category: 'brush', tags: '闘魂 鋭い 和風 かっこいい reggae' },
   { id: 'new-tegomin', name: 'ニューテゴミン (手書き風明朝)', googleFamily: 'New+Tegomin', family: "'New Tegomin', serif", weight: '400', category: 'brush', tags: '筆 手書き 明朝 和風 tegomin' },
+  { id: 'zen-antique', name: 'Zen アンティーク (味わい和風・レトロ)', googleFamily: 'Zen+Antique', family: "'Zen Antique', serif", weight: '400', category: 'brush', tags: '和風 アンティーク レトロ 味のある zen' },
+  { id: 'chokokutai', name: '彫刻体 (版画・彫り文字風)', googleFamily: 'Chokokutai', family: "'Chokokutai', system-ui", weight: '400', category: 'brush', tags: '和風 彫刻 版画 力強い 個性的 chokokutai' },
 
   // ゴシック・極太系
   { id: 'sans', name: 'Noto 角ゴシック Black (王道・力強い)', googleFamily: 'Noto+Sans+JP:wght@900', family: "'Noto Sans JP', sans-serif", weight: '900', category: 'gothic', tags: '角ゴシック 太字 定番 王道 noto sans' },
   { id: 'pop', name: 'デラゴシック One (超極太・大迫力)', googleFamily: 'Dela+Gothic+One', family: "'Dela Gothic One', cursive", weight: '400', category: 'gothic', tags: '極太 ゴシック インパクト 目立つ dela gothic' },
   { id: 'zen-kaku', name: 'Zen 角ゴシック Black (モダン・端正)', googleFamily: 'Zen+Kaku+Gothic+New:wght@900', family: "'Zen Kaku Gothic New', sans-serif", weight: '900', category: 'gothic', tags: 'ゴシック 太字 クール zen kaku' },
   { id: 'm-plus-1p', name: 'M PLUS 1p Black (重厚ゴシック)', googleFamily: 'M+PLUS+1p:wght@900', family: "'M PLUS 1p', sans-serif", weight: '900', category: 'gothic', tags: 'ゴシック 極太 力強い m plus' },
+  { id: 'm-plus-2', name: 'M PLUS 2 Black (最新モダン極太)', googleFamily: 'M+PLUS+2:wght@900', family: "'M PLUS 2', sans-serif", weight: '900', category: 'gothic', tags: 'ゴシック 極太 モダン m plus 2' },
   { id: 'rocknroll', name: 'ロックンロール One (躍動・元気)', googleFamily: 'RocknRoll+One', family: "'RocknRoll One', sans-serif", weight: '400', category: 'gothic', tags: 'ロック 動き ポップ 太字 rocknroll' },
+  { id: 'shippori-antique', name: 'しっぽりアンチック (漫画・見出しゴシック)', googleFamily: 'Shippori+Antique', family: "'Shippori Antique', sans-serif", weight: '400', category: 'gothic', tags: 'ゴシック 力強い 見出し 漫画 shippori' },
+  { id: 'biz-udp-gothic', name: 'BIZ UDPゴシック Bold (くっきり視認性)', googleFamily: 'BIZ+UDPGothic:wght@700', family: "'BIZ UDPGothic', sans-serif", weight: '700', category: 'gothic', tags: 'ゴシック 読みやすい 太字 biz' },
 
   // 明朝・セリフ系
   { id: 'serif', name: 'Noto 明朝 Black (伝統・格式)', googleFamily: 'Noto+Serif+JP:wght@900', family: "'Noto Serif JP', serif", weight: '900', category: 'mincho', tags: '明朝 伝統 格式 武道 硬派 noto serif' },
@@ -81,14 +86,20 @@ const INITIAL_FONT_CATALOG = [
   { id: 'zen-old-mincho', name: 'Zen オールド明朝 Black (堂々・重厚)', googleFamily: 'Zen+Old+Mincho:wght@900', family: "'Zen Old Mincho', serif", weight: '900', category: 'mincho', tags: '明朝 重厚 クラシック 武道 zen old mincho' },
   { id: 'kaisei-tokumin', name: '解星 特ミン ExtraBold (力強い太明朝)', googleFamily: 'Kaisei+Tokumin:wght@800', family: "'Kaisei Tokumin', serif", weight: '800', category: 'mincho', tags: '明朝 太い 個性的 kaisei tokumin' },
   { id: 'kaisei-decol', name: '解星 デコール Bold (華やか明朝)', googleFamily: 'Kaisei+Decol:wght@700', family: "'Kaisei Decol', serif", weight: '700', category: 'mincho', tags: '明朝 飾り かわいい 華やか kaisei decol' },
+  { id: 'kaisei-opti', name: '解星 オプティ Bold (優美・伝統明朝)', googleFamily: 'Kaisei+Opti:wght@700', family: "'Kaisei Opti', serif", weight: '700', category: 'mincho', tags: '明朝 上品 伝統 優美 kaisei opti' },
+  { id: 'kaisei-harunoumi', name: '解星 春の海 Bold (やわらか筆風明朝)', googleFamily: 'Kaisei+HarunoUmi:wght@700', family: "'Kaisei HarunoUmi', serif", weight: '700', category: 'mincho', tags: '明朝 筆風 やわらか kaisei harunoumi' },
   { id: 'sawarabi-mincho', name: 'さわらび明朝 (すっきり明朝)', googleFamily: 'Sawarabi+Mincho', family: "'Sawarabi Mincho', serif", weight: '400', category: 'mincho', tags: '明朝 シンプル 読みやすい sawarabi' },
+  { id: 'biz-udp-mincho', name: 'BIZ UDP明朝 Bold (くっきり太明朝)', googleFamily: 'BIZ+UDPMincho:wght@700', family: "'BIZ UDPMincho', serif", weight: '700', category: 'mincho', tags: '明朝 読みやすい 太字 biz' },
 
   // 丸ゴシック・ポップ・手書き系
   { id: 'round', name: 'M PLUS 丸ゴシック ExtraBold (親しみ)', googleFamily: 'M+PLUS+Rounded+1c:wght@800', family: "'M PLUS Rounded 1c', sans-serif", weight: '800', category: 'pop', tags: '丸ゴシック 優しい 定番 m plus rounded' },
   { id: 'heavy', name: 'モッチーポップ One (極太ポップ)', googleFamily: 'Mochiy+Pop+One', family: "'Mochiy Pop One', sans-serif", weight: '400', category: 'pop', tags: 'ポップ 太字 目立つ かわいい mochiy pop' },
   { id: 'zen-maru', name: 'Zen 丸ゴシック Black (やわらか太丸)', googleFamily: 'Zen+Maru+Gothic:wght@900', family: "'Zen Maru Gothic', sans-serif", weight: '900', category: 'pop', tags: '丸ゴシック 太字 おしゃれ zen maru' },
   { id: 'kosugi-maru', name: '小杉丸ゴシック (すっきり丸文字)', googleFamily: 'Kosugi+Maru', family: "'Kosugi Maru', sans-serif", weight: '400', category: 'pop', tags: '丸ゴシック シンプル kosugi maru' },
+  { id: 'kiwi-maru', name: 'キウイ丸 Medium (おしゃれ丸文字)', googleFamily: 'Kiwi+Maru:wght@500', family: "'Kiwi Maru', serif", weight: '500', category: 'pop', tags: '丸文字 おしゃれ かわいい kiwi maru' },
   { id: 'potta-one', name: 'ポッタ One (楽しい極太ブラシ)', googleFamily: 'Potta+One', family: "'Potta One', cursive", weight: '400', category: 'pop', tags: 'ポップ 太い イベント 文化祭 potta' },
+  { id: 'darumadrop', name: 'だるまドロップ One (丸っこい極太)', googleFamily: 'Darumadrop+One', family: "'Darumadrop One', cursive", weight: '400', category: 'pop', tags: 'ポップ 極太 ユニーク 応援 daruma' },
+  { id: 'cherry-bomb', name: 'チェリーボム One (超極太ポップ)', googleFamily: 'Cherry+Bomb+One', family: "'Cherry Bomb One', cursive", weight: '400', category: 'pop', tags: 'ポップ 超極太 かわいい cherry' },
   { id: 'hachi-maru', name: 'はちまるポップ (手書き・ゆるふわ)', googleFamily: 'Hachi+Maru+Pop', family: "'Hachi Maru Pop', cursive", weight: '400', category: 'pop', tags: '手書き かわいい 丸文字 hachi maru' },
   { id: 'yusei-magic', name: '油性マジック (マーカー手書き風)', googleFamily: 'Yusei+Magic', family: "'Yusei Magic', sans-serif", weight: '400', category: 'pop', tags: '手書き マジック 応援 yusei magic' },
   { id: 'klee-one', name: 'クレー One SemiBold (丁寧な手書き・教科書風)', googleFamily: 'Klee+One:wght@600', family: "'Klee One', cursive", weight: '600', category: 'pop', tags: '手書き 綺麗 青春 エモい klee' },
@@ -100,9 +111,23 @@ const INITIAL_FONT_CATALOG = [
   { id: 'dotgothic', name: 'ドットゴシック16 (レトロピクセル)', googleFamily: 'DotGothic16', family: "'DotGothic16', sans-serif", weight: '400', category: 'design', tags: 'ドット レトロ ゲーム 電光掲示板 dotgothic' },
 
   // 欧文・スポーツ系
-  { id: 'bebas-neue', name: 'Bebas Neue (欧文・スポーツ定番)', googleFamily: 'Bebas+Neue', family: "'Bebas Neue', sans-serif", weight: '400', category: 'english', tags: '英語 アルファベット スポーティ かっこいい bebas' },
   { id: 'anton', name: 'Anton (欧文・極太インパクト)', googleFamily: 'Anton', family: "'Anton', sans-serif", weight: '400', category: 'english', tags: '英語 極太 インパクト スタジアム anton' },
   { id: 'oswald', name: 'Oswald Bold (欧文・長体ゴシック)', googleFamily: 'Oswald:wght@700', family: "'Oswald', sans-serif", weight: '700', category: 'english', tags: '英語 クール 縦長 スポーティ oswald' },
+  { id: 'bebas-neue', name: 'Bebas Neue (欧文・スポーツ定番)', googleFamily: 'Bebas+Neue', family: "'Bebas Neue', sans-serif", weight: '400', category: 'english', tags: '英語 アルファベット スポーティ かっこいい bebas' },
+  { id: 'black-ops', name: 'Black Ops One (ステンシル・スナイパー風)', googleFamily: 'Black+Ops+One', family: "'Black Ops One', cursive", weight: '400', category: 'english', tags: '英語 ステンシル ミリタリー スナイパー かっこいい black ops' },
+  { id: 'russo-one', name: 'Russo One (力強いスポーツブロック)', googleFamily: 'Russo+One', family: "'Russo One', sans-serif", weight: '400', category: 'english', tags: '英語 スポーツ 太字 チーム russo' },
+  { id: 'teko', name: 'Teko Bold (縦長シャープ・ユニフォーム風)', googleFamily: 'Teko:wght@700', family: "'Teko', sans-serif", weight: '700', category: 'english', tags: '英語 縦長 スポーティ シャープ teko' },
+  { id: 'archivo-black', name: 'Archivo Black (ワイド極太ゴシック)', googleFamily: 'Archivo+Black', family: "'Archivo Black', sans-serif", weight: '400', category: 'english', tags: '英語 極太 ワイド インパクト archivo' },
+  { id: 'barlow-condensed', name: 'Barlow Condensed ExtraBold (スタイリッシュ長体)', googleFamily: 'Barlow+Condensed:wght@800', family: "'Barlow Condensed', sans-serif", weight: '800', category: 'english', tags: '英語 長体 モダン スポーツ barlow' },
+  { id: 'montserrat', name: 'Montserrat Black (王道モダン極太)', googleFamily: 'Montserrat:wght@900', family: "'Montserrat', sans-serif", weight: '900', category: 'english', tags: '英語 モダン 極太 王道 montserrat' },
+  { id: 'bungee', name: 'Bungee (アメリカンスポーツ・ブロック)', googleFamily: 'Bungee', family: "'Bungee', cursive", weight: '400', category: 'english', tags: '英語 ブロック ポップ スポーツ bungee' },
+  { id: 'graduate', name: 'Graduate (カレッジスポーツ・スラブ)', googleFamily: 'Graduate', family: "'Graduate', serif", weight: '400', category: 'english', tags: '英語 大学 スポーツ カレッジ 背番号 graduate' },
+  { id: 'chakra-petch', name: 'Chakra Petch Bold (サイバー・eスポーツ)', googleFamily: 'Chakra+Petch:wght@700', family: "'Chakra Petch', sans-serif", weight: '700', category: 'english', tags: '英語 サイバー 近未来 ゲーム chakra' },
+  { id: 'staatliches', name: 'Staatliches (縦長ポスター見出し)', googleFamily: 'Staatliches', family: "'Staatliches', cursive", weight: '400', category: 'english', tags: '英語 縦長 ポスター 大文字 staatliches' },
+  { id: 'squada-one', name: 'Squada One (角張りロゴフォント)', googleFamily: 'Squada+One', family: "'Squada One', cursive", weight: '400', category: 'english', tags: '英語 角張り ロゴ スポーツ squada' },
+  { id: 'passion-one', name: 'Passion One Bold (迫力太字ディスプレイ)', googleFamily: 'Passion+One:wght@700', family: "'Passion One', cursive", weight: '700', category: 'english', tags: '英語 太字 迫力 passion' },
+  { id: 'righteous', name: 'Righteous (モダン・スポーティ丸系)', googleFamily: 'Righteous', family: "'Righteous', cursive", weight: '400', category: 'english', tags: '英語 モダン スポーティ righteous' },
+  { id: 'kaushan-script', name: 'Kaushan Script (勢いある筆・筆記体)', googleFamily: 'Kaushan+Script', family: "'Kaushan Script', cursive", weight: '400', category: 'english', tags: '英語 筆記体 サイン 筆 スポーティ kaushan' },
 ];
 
 const SIZE_PRESETS = [
@@ -429,6 +454,7 @@ export default function App() {
   const [isFontDragging, setIsFontDragging] = useState(false);
   const [customGoogleFontInput, setCustomGoogleFontInput] = useState('');
   const [isLoadingFont, setIsLoadingFont] = useState(false);
+  const [isFontGalleryOpen, setIsFontGalleryOpen] = useState(false);
   const fontFileInputRef = useRef(null);
 
   // 画像OCR文字読み取り＆デザイン復元用ステート
@@ -1019,6 +1045,156 @@ export default function App() {
     const matchFamily = f.family.toLowerCase().includes(q);
     return matchesCategory && (matchName || matchTags || matchFamily);
   });
+
+  // カテゴリごとのフォント件数
+  const getCategoryCount = (catId) =>
+    catId === 'all'
+      ? fontCatalog.length
+      : fontCatalog.filter((f) => f.category === catId).length;
+
+  // 共通フォント検索・カテゴリバーUI（サイドバー・一覧モーダル共有）
+  const renderFontFilterBar = (compact = false) => (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={fontSearchQuery}
+          onChange={(e) => setFontSearchQuery(e.target.value)}
+          placeholder="フォント名や特徴で検索（例: 筆, 明朝, 極太, 丸, ステンシル, Anton...）"
+          className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
+        />
+        {fontSearchQuery && (
+          <button
+            type="button"
+            onClick={() => setFontSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1">
+        {FONT_CATEGORIES.map((cat) => {
+          const active = selectedFontCategory === cat.id;
+          const count = getCategoryCount(cat.id);
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedFontCategory(cat.id)}
+              className={`px-2 py-1 rounded-md font-bold whitespace-nowrap transition ${
+                compact ? 'text-[10.5px]' : 'text-xs'
+              } ${
+                active
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {cat.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // 共通フォントカード1枚の描画（サイドバー・一覧モーダル共有）
+  const renderFontItemCard = (f, isModal = false) => {
+    const isCurrent = selectedText?.fontId === f.id;
+    const previewSample =
+      selectedText?.text.replace(/\n/g, ' ').slice(0, isModal ? 22 : 16) ||
+      '必勝・心を一つに！';
+    const needsEnglishSample = f.category === 'english' && !/[A-Za-z0-9]/.test(previewSample);
+
+    return (
+      <div
+        key={f.id}
+        onClick={() => {
+          updateSelectedText({ fontId: f.id });
+          if (isModal) {
+            setIsFontGalleryOpen(false);
+            showToast(`フォントを「${f.name}」に変更しました`);
+          }
+        }}
+        className={`group flex items-center justify-between rounded-lg border cursor-pointer transition ${
+          isModal ? 'p-3 flex-col items-stretch gap-1.5' : 'px-2.5 py-1.5'
+        } ${
+          isCurrent
+            ? 'bg-sky-50 border-sky-500 ring-1 ring-sky-500 shadow-sm'
+            : 'bg-white border-slate-200 hover:border-sky-400 hover:bg-slate-50'
+        }`}
+      >
+        <div className="min-w-0 flex-1 pr-1">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[11px] font-bold text-slate-700 truncate">
+                {f.name}
+              </span>
+              {f.isCustom && (
+                <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 rounded font-bold shrink-0">
+                  追加ファイル
+                </span>
+              )}
+              {f.isDynamicGoogle && (
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 rounded font-bold shrink-0">
+                  Google追加
+                </span>
+              )}
+            </div>
+
+            {isModal && isCurrent && (
+              <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-full font-bold shrink-0">
+                適用中
+              </span>
+            )}
+          </div>
+
+          <div
+            className={`text-slate-900 truncate mt-0.5 ${isModal ? 'text-xl py-1' : 'text-base'}`}
+            style={{
+              fontFamily: f.family,
+              fontWeight: f.weight,
+            }}
+          >
+            {previewSample}
+          </div>
+          {needsEnglishSample && (
+            <div
+              className="text-xs text-slate-500 truncate"
+              style={{ fontFamily: f.family, fontWeight: f.weight }}
+            >
+              VICTORY 2026
+            </div>
+          )}
+        </div>
+
+        {!isModal && (
+          <div className="flex items-center gap-1 shrink-0">
+            {isCurrent && (
+              <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-full font-bold">
+                適用中
+              </span>
+            )}
+            {f.isCustom && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeCustomFont(f.id);
+                }}
+                title="この追加フォントを削除"
+                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // --- ローカルのフォントファイル (.ttf / .otf / .woff / .woff2) の読み込み処理 ---
   const handleUploadFontFiles = async (fileList) => {
@@ -2261,6 +2437,8 @@ export default function App() {
       {/* Google Fonts & 追加カスタムフォント 読み込み */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Dela+Gothic+One&family=DotGothic16&family=Hachi+Maru+Pop&family=Kaisei+Decol:wght@700&family=Kaisei+Tokumin:wght@800&family=Klee+One:wght@600&family=Kosugi+Maru&family=M+PLUS+1p:wght@900&family=M+PLUS+Rounded+1c:wght@800&family=Mochiy+Pop+One&family=New+Tegomin&family=Noto+Sans+JP:wght@700;900&family=Noto+Serif+JP:wght@900&family=Oswald:wght@700&family=Potta+One&family=Rampart+One&family=Reggae+One&family=RocknRoll+One&family=Sawarabi+Mincho&family=Shippori+Mincho:wght@800&family=Stick&family=Train+One&family=Yuji+Boku&family=Yuji+Mai&family=Yuji+Syuku&family=Yusei+Magic&family=Zen+Kaku+Gothic+New:wght@900&family=Zen+Maru+Gothic:wght@900&family=Zen+Old+Mincho:wght@900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700&family=BIZ+UDPMincho:wght@700&family=Cherry+Bomb+One&family=Chokokutai&family=Darumadrop+One&family=Kaisei+HarunoUmi:wght@700&family=Kaisei+Opti:wght@700&family=Kiwi+Maru:wght@500&family=M+PLUS+2:wght@900&family=Shippori+Antique&family=Zen+Antique&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@800&family=Black+Ops+One&family=Bungee&family=Chakra+Petch:wght@700&family=Graduate&family=Kaushan+Script&family=Montserrat:wght@900&family=Passion+One:wght@700&family=Righteous&family=Russo+One&family=Squada+One&family=Staatliches&family=Teko:wght@700&display=swap');
         ${customFontFacesCss
           .map(
             (cf) =>
@@ -2906,20 +3084,30 @@ export default function App() {
                     </div>
 
                     {/* フォント検索・選択＆カスタムフォント追加セクション */}
-                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-3 shadow-sm">
-                      <div className="flex items-center justify-between">
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5 shadow-sm">
+                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
                         <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                           <Search className="w-3.5 h-3.5 text-sky-600" />
-                          フォントを検索・変更 ({filteredFonts.length}種)
+                          フォント ({filteredFonts.length}/{fontCatalog.length}種)
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => fontFileInputRef.current?.click()}
-                          className="text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1 transition"
-                        >
-                          <Upload className="w-3 h-3" />
-                          フォントファイルを追加
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setIsFontGalleryOpen(true)}
+                            className="text-[11px] bg-sky-600 hover:bg-sky-500 text-white font-bold px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1 transition"
+                          >
+                            <Grid className="w-3 h-3" />
+                            一覧から広く選ぶ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fontFileInputRef.current?.click()}
+                            className="text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2 py-1 rounded-lg shadow-sm flex items-center gap-1 transition"
+                          >
+                            <Upload className="w-3 h-3" />
+                            追加
+                          </button>
+                        </div>
                         <input
                           ref={fontFileInputRef}
                           type="file"
@@ -2930,115 +3118,12 @@ export default function App() {
                         />
                       </div>
 
-                      {/* 検索入力ボックス */}
-                      <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={fontSearchQuery}
-                          onChange={(e) => setFontSearchQuery(e.target.value)}
-                          placeholder="フォント名や特徴で検索（例: 筆, 明朝, 極太, 丸, Yuji, Bebas...）"
-                          className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
-                        />
-                        {fontSearchQuery && (
-                          <button
-                            onClick={() => setFontSearchQuery('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* カテゴリ絞り込みタブ */}
-                      <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                        {FONT_CATEGORIES.map((cat) => {
-                          const active = selectedFontCategory === cat.id;
-                          return (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => setSelectedFontCategory(cat.id)}
-                              className={`px-2 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition ${
-                                active
-                                  ? 'bg-sky-600 text-white shadow-sm'
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                              }`}
-                            >
-                              {cat.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {renderFontFilterBar(true)}
 
                       {/* フォントプレビュー付きリスト */}
-                      <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 border-t border-b border-slate-100 py-1.5">
+                      <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1 border-t border-b border-slate-100 py-1.5">
                         {filteredFonts.length > 0 ? (
-                          filteredFonts.map((f) => {
-                            const isCurrent = selectedText.fontId === f.id;
-                            const previewSample =
-                              selectedText.text.replace(/\n/g, ' ').slice(0, 14) ||
-                              '必勝・心を一つに！';
-                            return (
-                              <div
-                                key={f.id}
-                                onClick={() => updateSelectedText({ fontId: f.id })}
-                                className={`group flex items-center justify-between px-2.5 py-2 rounded-lg border cursor-pointer transition ${
-                                  isCurrent
-                                    ? 'bg-sky-50 border-sky-500 ring-1 ring-sky-500'
-                                    : 'bg-white border-slate-200 hover:border-sky-300 hover:bg-slate-50'
-                                }`}
-                              >
-                                <div className="min-w-0 flex-1 pr-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[11px] font-bold text-slate-700 truncate">
-                                      {f.name}
-                                    </span>
-                                    {f.isCustom && (
-                                      <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded font-bold shrink-0">
-                                        追加ファイル
-                                      </span>
-                                    )}
-                                    {f.isDynamicGoogle && (
-                                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold shrink-0">
-                                        Google追加
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div
-                                    className="text-base text-slate-900 truncate mt-0.5"
-                                    style={{
-                                      fontFamily: f.family,
-                                      fontWeight: f.weight,
-                                    }}
-                                  >
-                                    {previewSample}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1 shrink-0">
-                                  {isCurrent && (
-                                    <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-full font-bold">
-                                      適用中
-                                    </span>
-                                  )}
-                                  {f.isCustom && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeCustomFont(f.id);
-                                      }}
-                                      title="この追加フォントを削除"
-                                      className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
+                          filteredFonts.map((f) => renderFontItemCard(f, false))
                         ) : (
                           <div className="text-center py-4 px-2 space-y-2">
                             <p className="text-xs text-slate-500">
@@ -4439,6 +4524,68 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* フォント一覧ギャラリーモーダル */}
+      {isFontGalleryOpen && selectedText && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+          onClick={() => setIsFontGalleryOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 sm:px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Grid className="w-5 h-5 text-sky-400 shrink-0" />
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-bold truncate">
+                    フォント一覧ギャラリー（全 {fontCatalog.length} 種 / 表示中 {filteredFonts.length} 種）
+                  </h2>
+                  <p className="text-[11px] text-slate-300 truncate">
+                    クリックすると選択中の文字「{selectedText.text.replace(/\n/g, ' ')}」に即座に適用されます
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFontGalleryOpen(false)}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                title="閉じる"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-slate-200 bg-slate-50/70">
+              {renderFontFilterBar(false)}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 content-start">
+              {filteredFonts.length > 0 ? (
+                filteredFonts.map((f) => renderFontItemCard(f, true))
+              ) : (
+                <div className="col-span-full text-center py-10 space-y-3">
+                  <p className="text-sm text-slate-500">
+                    「{fontSearchQuery}」に一致するフォントが見つかりません
+                  </p>
+                  {fontSearchQuery.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => handleLoadGoogleFontByName(fontSearchQuery)}
+                      disabled={isLoadingFont}
+                      className="inline-flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition"
+                    >
+                      <Globe className="w-4 h-4" />
+                      Google Fontsから「{fontSearchQuery.trim()}」を読み込む
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
