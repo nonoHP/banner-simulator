@@ -2015,6 +2015,24 @@ ${
     return embeddedBlocks.join('\n');
   };
 
+  const buildBannerDownloadFilename = (textItems, suffix = '') => {
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const datePrefix = `${yy}${mm}${dd}`;
+
+    const joinedText = (textItems || [])
+      .map((t) => (t?.text || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join(' ')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .trim();
+
+    const safeBody = (joinedText || 'banner').slice(0, 100).trim();
+    return `${datePrefix}_${safeBody}${suffix}.png`;
+  };
+
   // --- PNG画像ダウンロード処理 ---
   const downloadSvgAsPng = async (svgElement, filename, exportWidthPx = 1600) => {
     if (!svgElement) return;
@@ -3434,7 +3452,7 @@ ${
               onClick={() =>
                 downloadSvgAsPng(
                   svgEditRef.current,
-                  `banner_${bannerWidth}x${bannerHeight}cm.png`,
+                  buildBannerDownloadFilename(texts),
                   1800
                 )
               }
@@ -3448,7 +3466,7 @@ ${
               onClick={() =>
                 downloadSvgAsPng(
                   svgScaleRef.current,
-                  `banner_size_compare_${bannerWidth}x${bannerHeight}cm.png`,
+                  buildBannerDownloadFilename(texts, '_比較図'),
                   1600
                 )
               }
@@ -6321,7 +6339,7 @@ ${
                                   if (svgEl) {
                                     downloadSvgAsPng(
                                       svgEl,
-                                      `${fav.title.replace(/[\\/:*?"<>|]/g, '_')}.png`,
+                                      buildBannerDownloadFilename(fav.texts || []),
                                       1800
                                     );
                                   }
