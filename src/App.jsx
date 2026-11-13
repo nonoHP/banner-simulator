@@ -2934,18 +2934,7 @@ export default function App() {
               }`}
             >
               <Type className="w-4 h-4" />
-              <span>文字・配置</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
-                activeTab === 'ai'
-                  ? 'border-violet-600 text-violet-700 bg-violet-50/40'
-                  : 'border-transparent text-slate-500 hover:text-violet-700'
-              }`}
-            >
-              <Wand2 className="w-4 h-4 text-violet-600" />
-              <span>✨AI文言提案</span>
+              <span>文言</span>
             </button>
             <button
               onClick={() => setActiveTab('size_bg')}
@@ -2957,6 +2946,17 @@ export default function App() {
             >
               <Palette className="w-4 h-4" />
               <span>背景・サイズ</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
+                activeTab === 'ai'
+                  ? 'border-violet-600 text-violet-700 bg-violet-50/40'
+                  : 'border-transparent text-slate-500 hover:text-violet-700'
+              }`}
+            >
+              <Wand2 className="w-4 h-4 text-violet-600" />
+              <span>✨AI文言提案</span>
             </button>
             <button
               onClick={() => setActiveTab('human')}
@@ -2984,7 +2984,7 @@ export default function App() {
 
           {/* タブの中身（スクロール領域） */}
           <div className="flex-1 overflow-y-auto p-4 space-y-5">
-            {/* ==================== タブ1: 文字・配置 ==================== */}
+            {/* ==================== タブ1: 文言 ==================== */}
             {activeTab === 'text' && (
               <div className="space-y-4">
                 {/* AI書き換えショートカットバナー */}
