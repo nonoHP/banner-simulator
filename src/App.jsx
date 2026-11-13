@@ -1106,7 +1106,7 @@ export default function App() {
   const renderFontItemCard = (f, isModal = false) => {
     const isCurrent = selectedText?.fontId === f.id;
     const previewSample =
-      selectedText?.text.replace(/\n/g, ' ').slice(0, isModal ? 22 : 16) ||
+      selectedText?.text.replace(/\n/g, ' ').slice(0, isModal ? 18 : 16) ||
       '必勝・心を一つに！';
     const needsEnglishSample = f.category === 'english' && !/[A-Za-z0-9]/.test(previewSample);
 
@@ -1121,7 +1121,7 @@ export default function App() {
           }
         }}
         className={`group flex items-center justify-between rounded-lg border cursor-pointer transition ${
-          isModal ? 'p-3 flex-col items-stretch gap-1.5' : 'px-2.5 py-1.5'
+          isModal ? 'px-2.5 py-1.5 flex-col items-stretch gap-0.5' : 'px-2.5 py-1.5'
         } ${
           isCurrent
             ? 'bg-sky-50 border-sky-500 ring-1 ring-sky-500 shadow-sm'
@@ -1129,32 +1129,40 @@ export default function App() {
         }`}
       >
         <div className="min-w-0 flex-1 pr-1">
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[11px] font-bold text-slate-700 truncate">
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 min-w-0">
+              <span
+                className={`font-bold truncate ${
+                  isModal
+                    ? 'text-[10.5px] leading-tight text-slate-600'
+                    : 'text-[11px] text-slate-700'
+                }`}
+              >
                 {f.name}
               </span>
               {f.isCustom && (
-                <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 rounded font-bold shrink-0">
-                  追加ファイル
+                <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1 rounded font-bold shrink-0">
+                  追加
                 </span>
               )}
               {f.isDynamicGoogle && (
-                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 rounded font-bold shrink-0">
-                  Google追加
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold shrink-0">
+                  Google
                 </span>
               )}
             </div>
 
             {isModal && isCurrent && (
-              <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-full font-bold shrink-0">
+              <span className="text-[9px] bg-sky-600 text-white px-1.5 py-0.5 rounded-full font-bold shrink-0">
                 適用中
               </span>
             )}
           </div>
 
           <div
-            className={`text-slate-900 truncate mt-0.5 ${isModal ? 'text-xl py-1' : 'text-base'}`}
+            className={`text-slate-900 truncate ${
+              isModal ? 'text-[17px] leading-snug mt-0.5' : 'text-base mt-0.5'
+            }`}
             style={{
               fontFamily: f.family,
               fontWeight: f.weight,
@@ -1164,7 +1172,7 @@ export default function App() {
           </div>
           {needsEnglishSample && (
             <div
-              className="text-xs text-slate-500 truncate"
+              className={`text-slate-500 truncate ${isModal ? 'text-[10px] leading-tight' : 'text-xs'}`}
               style={{ fontFamily: f.family, fontWeight: f.weight }}
             >
               VICTORY 2026
@@ -4526,40 +4534,38 @@ export default function App() {
       {/* フォント一覧ギャラリーモーダル */}
       {isFontGalleryOpen && selectedText && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3"
           onClick={() => setIsFontGalleryOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[88vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[96vw] max-h-[94vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 sm:px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Grid className="w-5 h-5 text-sky-400 shrink-0" />
-                <div className="min-w-0">
-                  <h2 className="text-sm sm:text-base font-bold truncate">
-                    フォント一覧ギャラリー（全 {fontCatalog.length} 種 / 表示中 {filteredFonts.length} 種）
-                  </h2>
-                  <p className="text-[11px] text-slate-300 truncate">
-                    クリックすると選択中の文字「{selectedText.text.replace(/\n/g, ' ')}」に即座に適用されます
-                  </p>
-                </div>
+            <div className="px-4 py-2 bg-slate-900 text-white flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                <Grid className="w-4 h-4 text-sky-400 shrink-0" />
+                <h2 className="text-xs sm:text-sm font-bold truncate">
+                  フォント一覧ギャラリー（全 {fontCatalog.length} 種 / 表示中 {filteredFonts.length} 種）
+                </h2>
+                <span className="text-[11px] text-slate-300 truncate hidden sm:inline">
+                  — クリックで選択中の文字「{selectedText.text.replace(/\n/g, ' ')}」に即適用
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsFontGalleryOpen(false)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition shrink-0"
                 title="閉じる"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 border-b border-slate-200 bg-slate-50/70">
-              {renderFontFilterBar(false)}
+            <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/70">
+              {renderFontFilterBar(true)}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 content-start">
+            <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 content-start">
               {filteredFonts.length > 0 ? (
                 filteredFonts.map((f) => renderFontItemCard(f, true))
               ) : (
