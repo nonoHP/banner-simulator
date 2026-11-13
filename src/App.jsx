@@ -2956,7 +2956,7 @@ export default function App() {
               }`}
             >
               <Palette className="w-4 h-4" />
-              <span>サイズ・背景</span>
+              <span>背景・サイズ</span>
             </button>
             <button
               onClick={() => setActiveTab('human')}
@@ -4057,108 +4057,9 @@ export default function App() {
               </div>
             )}
 
-            {/* ==================== タブ3: サイズ・背景 ==================== */}
+            {/* ==================== タブ3: 背景・サイズ ==================== */}
             {activeTab === 'size_bg' && (
               <div className="space-y-5">
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                      <Maximize2 className="w-3.5 h-3.5 text-sky-600" />
-                      横断幕のサイズ指定 (cm)
-                    </h3>
-                    <span className="text-xs font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded">
-                      比率 {(bannerWidth / bannerHeight).toFixed(2)} : 1
-                    </span>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center text-xs mb-1">
-                      <span className="font-bold text-slate-700">横幅 (W): 60〜1000cm</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="60"
-                          max="1000"
-                          value={bannerWidth}
-                          onChange={(e) =>
-                            setBannerWidth(Math.max(60, Math.min(1000, Number(e.target.value) || 60)))
-                          }
-                          className="w-16 text-right font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white"
-                        />
-                        <span className="text-slate-600">cm</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min="60"
-                      max="1000"
-                      step="10"
-                      value={bannerWidth}
-                      onChange={(e) => setBannerWidth(Number(e.target.value))}
-                      className="w-full accent-sky-600"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center text-xs mb-1">
-                      <span className="font-bold text-slate-700">縦幅 (H): 30〜300cm</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="30"
-                          max="300"
-                          value={bannerHeight}
-                          onChange={(e) =>
-                            setBannerHeight(Math.max(30, Math.min(300, Number(e.target.value) || 30)))
-                          }
-                          className="w-16 text-right font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white"
-                        />
-                        <span className="text-slate-600">cm</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min="30"
-                      max="300"
-                      step="5"
-                      value={bannerHeight}
-                      onChange={(e) => setBannerHeight(Number(e.target.value))}
-                      className="w-full accent-sky-600"
-                    />
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200">
-                    <label className="block text-xs font-bold text-slate-600 mb-2">
-                      よく使われる定番サイズから選ぶ：
-                    </label>
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {SIZE_PRESETS.map((preset) => {
-                        const isCurrent =
-                          bannerWidth === preset.width && bannerHeight === preset.height;
-                        return (
-                          <button
-                            key={preset.label}
-                            onClick={() => {
-                              setBannerWidth(preset.width);
-                              setBannerHeight(preset.height);
-                            }}
-                            className={`text-left px-3 py-2 rounded-lg border text-xs transition flex items-center justify-between ${
-                              isCurrent
-                                ? 'bg-sky-50 border-sky-500 text-sky-900 font-bold'
-                                : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            <span>{preset.label}</span>
-                            <span className="text-[11px] text-slate-500 font-normal">
-                              {preset.desc}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
                 {/* 背景・枠デザイン設定 */}
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-4">
                   <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
@@ -4376,6 +4277,106 @@ export default function App() {
                       />
                       ハトメ（紐を通す四隅・周囲の金具穴）を表示する
                     </label>
+                  </div>
+                </div>
+
+                {/* 横断幕のサイズ指定 */}
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                      <Maximize2 className="w-3.5 h-3.5 text-sky-600" />
+                      横断幕のサイズ指定 (cm)
+                    </h3>
+                    <span className="text-xs font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded">
+                      比率 {(bannerWidth / bannerHeight).toFixed(2)} : 1
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center text-xs mb-1">
+                      <span className="font-bold text-slate-700">横幅 (W): 60〜1000cm</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="60"
+                          max="1000"
+                          value={bannerWidth}
+                          onChange={(e) =>
+                            setBannerWidth(Math.max(60, Math.min(1000, Number(e.target.value) || 60)))
+                          }
+                          className="w-16 text-right font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white"
+                        />
+                        <span className="text-slate-600">cm</span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="60"
+                      max="1000"
+                      step="10"
+                      value={bannerWidth}
+                      onChange={(e) => setBannerWidth(Number(e.target.value))}
+                      className="w-full accent-sky-600"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center text-xs mb-1">
+                      <span className="font-bold text-slate-700">縦幅 (H): 30〜300cm</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="30"
+                          max="300"
+                          value={bannerHeight}
+                          onChange={(e) =>
+                            setBannerHeight(Math.max(30, Math.min(300, Number(e.target.value) || 30)))
+                          }
+                          className="w-16 text-right font-bold border border-slate-300 rounded px-1.5 py-0.5 bg-white"
+                        />
+                        <span className="text-slate-600">cm</span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="30"
+                      max="300"
+                      step="5"
+                      value={bannerHeight}
+                      onChange={(e) => setBannerHeight(Number(e.target.value))}
+                      className="w-full accent-sky-600"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-xs font-bold text-slate-600 mb-2">
+                      よく使われる定番サイズから選ぶ：
+                    </label>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {SIZE_PRESETS.map((preset) => {
+                        const isCurrent =
+                          bannerWidth === preset.width && bannerHeight === preset.height;
+                        return (
+                          <button
+                            key={preset.label}
+                            onClick={() => {
+                              setBannerWidth(preset.width);
+                              setBannerHeight(preset.height);
+                            }}
+                            className={`text-left px-3 py-2 rounded-lg border text-xs transition flex items-center justify-between ${
+                              isCurrent
+                                ? 'bg-sky-50 border-sky-500 text-sky-900 font-bold'
+                                : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <span>{preset.label}</span>
+                            <span className="text-[11px] text-slate-500 font-normal">
+                              {preset.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
