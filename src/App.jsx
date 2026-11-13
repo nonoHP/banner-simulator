@@ -278,6 +278,50 @@ const BG_MULTI_PALETTES = [
   { name: '紫×白', colors: ['#6b21a8', '#ffffff'] },
 ];
 
+const TEXT_EFFECT_OPTIONS = [
+  { id: 'shadow', label: '立体影 (シャドウ)' },
+  { id: 'hard_shadow', label: '3D くっきり影' },
+  { id: 'double_outline', label: '二重フチ取り' },
+  { id: 'neon', label: 'ネオン発光' },
+  { id: 'metallic', label: 'メタリック光沢' },
+  { id: 'highlight_bar', label: '背景カラー帯' },
+  { id: 'underline', label: '強調アンダーライン' },
+];
+
+const getTextEffects = (item) => {
+  if (Array.isArray(item?.effects)) return item.effects;
+  return item?.shadow ? ['shadow'] : [];
+};
+
+const adjustHexBrightness = (hex, delta) => {
+  if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) return hex || '#ffffff';
+  const clamp = (n) => Math.max(0, Math.min(255, n));
+  const r = clamp(parseInt(hex.slice(1, 3), 16) + delta);
+  const g = clamp(parseInt(hex.slice(3, 5), 16) + delta);
+  const b = clamp(parseInt(hex.slice(5, 7), 16) + delta);
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+};
+
+const estimateBannerTextBox = (lines, fontSize, letterSpacing, isVertical) => {
+  if (isVertical) {
+    const maxChars = Math.max(1, ...lines.map((l) => Array.from(l).length));
+    const width = Math.max(fontSize * 1.4, lines.length * fontSize * 1.28 + fontSize * 0.45);
+    const height = maxChars * (fontSize + letterSpacing) + fontSize * 0.45;
+    return { width, height };
+  }
+  const lineWidths = lines.map((line) => {
+    let wUnits = 0;
+    for (const ch of Array.from(line)) {
+      wUnits += /[\u0020-\u007e]/.test(ch) ? 0.62 : 1.02;
+    }
+    const spacingTotal = Math.max(0, Array.from(line).length - 1) * letterSpacing;
+    return wUnits * fontSize + spacingTotal;
+  });
+  const width = Math.max(fontSize * 1.6, ...lineWidths) + fontSize * 0.7;
+  const height = lines.length * fontSize * 1.18 + fontSize * 0.35;
+  return { width, height };
+};
+
 const getBgColorsFromConfig = (cfg) => {
   if (Array.isArray(cfg?.colors) && cfg.colors.length >= 2) {
     return cfg.colors;
@@ -2223,6 +2267,38 @@ export default function App() {
             />
           </filter>
 
+          {curTexts.map((item) => {
+            const activeEffects = getTextEffects(item);
+            const baseCol = item.color || '#ffffff';
+            const neonCol = item.neonColor || baseCol;
+            return (
+              <React.Fragment key={`fx-${item.id}`}>
+                {activeEffects.includes('metallic') && (
+                  <linearGradient id={`${idPrefix}-metal-${item.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor={adjustHexBrightness(baseCol, 75)} />
+                    <stop offset="35%" stopColor={adjustHexBrightness(baseCol, 20)} />
+                    <stop offset="52%" stopColor={adjustHexBrightness(baseCol, 95)} />
+                    <stop offset="68%" stopColor={baseCol} />
+                    <stop offset="100%" stopColor={adjustHexBrightness(baseCol, -55)} />
+                  </linearGradient>
+                )}
+                {activeEffects.includes('neon') && (
+                  <filter id={`${idPrefix}-neon-${item.id}`} x="-40%" y="-40%" width="180%" height="180%">
+                    <feFlood floodColor={neonCol} floodOpacity="0.9" result="glowColor" />
+                    <feComposite in="glowColor" in2="SourceAlpha" operator="in" result="coloredAlpha" />
+                    <feGaussianBlur in="coloredAlpha" stdDeviation={Math.max(1.2, item.fontSize * 0.08)} result="blur1" />
+                    <feGaussianBlur in="coloredAlpha" stdDeviation={Math.max(2.6, item.fontSize * 0.2)} result="blur2" />
+                    <feMerge>
+                      <feMergeNode in="blur2" />
+                      <feMergeNode in="blur1" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                )}
+              </React.Fragment>
+            );
+          })}
+
           <pattern
             id={`${idPrefix}-pattern-slashes`}
             width={patBase * 0.8}
@@ -2567,43 +2643,54 @@ export default function App() {
               const isSelected =
                 isInteractive && activeLayerType === 'text' && selectedTextId === item.id;
               const lineHeight = item.fontSize * 1.18;
+              const activeEffects = getTextEffects(item);
+              const hasShadow = activeEffects.includes('shadow');
+              const hasHardShadow = activeEffects.includes('hard_shadow');
+              const hasDoubleOutline = activeEffects.includes('double_outline');
+              const hasNeon = activeEffects.includes('neon');
+              const hasMetallic = activeEffects.includes('metallic');
+              const hasHighlightBar = activeEffects.includes('highlight_bar');
+              const hasUnderline = activeEffects.includes('underline');
 
-              return (
-                <g
-                  key={item.id}
-                  transform={`translate(${posX}, ${posY})`}
-                  onMouseDown={isInteractive ? (e) => handlePointerDownText(e, item) : undefined}
-                  onTouchStart={isInteractive ? (e) => handlePointerDownText(e, item) : undefined}
-                  style={{ cursor: isInteractive ? 'move' : 'default', userSelect: 'none' }}
-                >
-                  {isSelected && (
-                    <g className="editor-only-guide">
-                      <circle
-                        cx="0"
-                        cy="0"
-                        r={Math.max(2, w * 0.008)}
-                        fill="#38bdf8"
-                        stroke="#ffffff"
-                        strokeWidth={w * 0.003}
-                      />
-                    </g>
-                  )}
+              const rot = item.rotation || 0;
+              const skew = item.skewAngle || 0;
+              const textTransform =
+                rot !== 0 || skew !== 0 ? `rotate(${rot}) skewX(${skew})` : undefined;
 
-                  {!item.isVertical ? (
+              const boxEst =
+                hasHighlightBar || hasUnderline
+                  ? estimateBannerTextBox(lines, item.fontSize, item.letterSpacing, item.isVertical)
+                  : null;
+              const mainFill = hasMetallic ? `url(#${idPrefix}-metal-${item.id})` : item.color;
+              const hardOffset = Math.max(1.5, item.fontSize * 0.085);
+              const outerStrokeW =
+                (item.strokeWidth > 0 ? item.strokeWidth : 0) +
+                Math.max(2.5, item.fontSize * 0.14);
+
+              const renderTextGlyph = ({
+                fillColor,
+                strokeColor,
+                strokeW,
+                filterVal,
+                opacityVal = 1,
+              }) => {
+                if (!item.isVertical) {
+                  return (
                     <text
                       textAnchor="middle"
                       dominantBaseline="central"
                       fontFamily={fontObj.family}
                       fontWeight={fontObj.weight}
                       fontSize={item.fontSize}
-                      fill={item.color}
-                      stroke={item.strokeWidth > 0 ? item.strokeColor : 'none'}
-                      strokeWidth={item.strokeWidth}
+                      fill={fillColor}
+                      stroke={strokeW > 0 ? strokeColor : 'none'}
+                      strokeWidth={strokeW}
                       strokeLinejoin="round"
                       strokeLinecap="round"
                       paintOrder="stroke fill"
                       letterSpacing={item.letterSpacing}
-                      filter={item.shadow ? `url(#${idPrefix}-drop-shadow)` : undefined}
+                      filter={filterVal}
+                      opacity={opacityVal}
                     >
                       {lines.map((line, idx) => {
                         const offsetY = (idx - (lines.length - 1) / 2) * lineHeight;
@@ -2614,45 +2701,143 @@ export default function App() {
                         );
                       })}
                     </text>
-                  ) : (
-                    <g filter={item.shadow ? `url(#${idPrefix}-drop-shadow)` : undefined}>
-                      {lines.map((colText, colIdx) => {
-                        const colOffsetX = ((lines.length - 1) / 2 - colIdx) * (item.fontSize * 1.25);
-                        const chars = Array.from(colText);
-                        const stepY = item.fontSize + item.letterSpacing;
-                        return (
-                          <g key={colIdx} transform={`translate(${colOffsetX}, 0)`}>
-                            {chars.map((ch, charIdx) => {
-                              const charOffsetY = (charIdx - (chars.length - 1) / 2) * stepY;
-                              const isRotatedChar = ['ー', '〜', '～', '(', ')', '（', '）', '「', '」', '-'].includes(ch);
-                              return (
-                                <text
-                                  key={charIdx}
-                                  x="0"
-                                  y={charOffsetY}
-                                  transform={
-                                    isRotatedChar
-                                      ? `rotate(90, 0, ${charOffsetY})`
-                                      : undefined
-                                  }
-                                  textAnchor="middle"
-                                  dominantBaseline="central"
-                                  fontFamily={fontObj.family}
-                                  fontWeight={fontObj.weight}
-                                  fontSize={item.fontSize}
-                                  fill={item.color}
-                                  stroke={item.strokeWidth > 0 ? item.strokeColor : 'none'}
-                                  strokeWidth={item.strokeWidth}
-                                  strokeLinejoin="round"
-                                  paintOrder="stroke fill"
-                                >
-                                  {ch}
-                                </text>
-                              );
-                            })}
-                          </g>
-                        );
+                  );
+                }
+                return (
+                  <g filter={filterVal} opacity={opacityVal}>
+                    {lines.map((colText, colIdx) => {
+                      const colOffsetX =
+                        ((lines.length - 1) / 2 - colIdx) * (item.fontSize * 1.25);
+                      const chars = Array.from(colText);
+                      const stepY = item.fontSize + item.letterSpacing;
+                      return (
+                        <g key={colIdx} transform={`translate(${colOffsetX}, 0)`}>
+                          {chars.map((ch, charIdx) => {
+                            const charOffsetY = (charIdx - (chars.length - 1) / 2) * stepY;
+                            const isRotatedChar = [
+                              'ー',
+                              '〜',
+                              '～',
+                              '(',
+                              ')',
+                              '（',
+                              '）',
+                              '「',
+                              '」',
+                              '-',
+                            ].includes(ch);
+                            return (
+                              <text
+                                key={charIdx}
+                                x="0"
+                                y={charOffsetY}
+                                transform={
+                                  isRotatedChar
+                                    ? `rotate(90, 0, ${charOffsetY})`
+                                    : undefined
+                                }
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                                fontFamily={fontObj.family}
+                                fontWeight={fontObj.weight}
+                                fontSize={item.fontSize}
+                                fill={fillColor}
+                                stroke={strokeW > 0 ? strokeColor : 'none'}
+                                strokeWidth={strokeW}
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                                paintOrder="stroke fill"
+                              >
+                                {ch}
+                              </text>
+                            );
+                          })}
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              };
+
+              return (
+                <g
+                  key={item.id}
+                  transform={`translate(${posX}, ${posY})`}
+                  onMouseDown={isInteractive ? (e) => handlePointerDownText(e, item) : undefined}
+                  onTouchStart={isInteractive ? (e) => handlePointerDownText(e, item) : undefined}
+                  style={{ cursor: isInteractive ? 'move' : 'default', userSelect: 'none' }}
+                >
+                  <g transform={textTransform}>
+                    {hasHighlightBar && boxEst && (
+                      <rect
+                        x={-boxEst.width / 2}
+                        y={-boxEst.height / 2}
+                        width={boxEst.width}
+                        height={boxEst.height}
+                        rx={Math.max(2, item.fontSize * 0.14)}
+                        fill={item.highlightBarColor || '#0f172a'}
+                        opacity="0.88"
+                      />
+                    )}
+
+                    <g filter={hasNeon ? `url(#${idPrefix}-neon-${item.id})` : undefined}>
+                      {hasHardShadow && (
+                        <g transform={`translate(${hardOffset}, ${hardOffset})`}>
+                          {renderTextGlyph({
+                            fillColor: item.hardShadowColor || '#0f172a',
+                            strokeColor: item.hardShadowColor || '#0f172a',
+                            strokeW: hasDoubleOutline
+                              ? outerStrokeW
+                              : item.strokeWidth > 0
+                              ? item.strokeWidth
+                              : 0,
+                            filterVal: undefined,
+                            opacityVal: 0.92,
+                          })}
+                        </g>
+                      )}
+
+                      {hasDoubleOutline &&
+                        renderTextGlyph({
+                          fillColor: item.doubleOutlineColor || '#ffffff',
+                          strokeColor: item.doubleOutlineColor || '#ffffff',
+                          strokeW: outerStrokeW,
+                          filterVal: hasShadow ? `url(#${idPrefix}-drop-shadow)` : undefined,
+                        })}
+
+                      {renderTextGlyph({
+                        fillColor: mainFill,
+                        strokeColor: item.strokeColor,
+                        strokeW: item.strokeWidth,
+                        filterVal:
+                          !hasDoubleOutline && hasShadow
+                            ? `url(#${idPrefix}-drop-shadow)`
+                            : undefined,
                       })}
+                    </g>
+
+                    {hasUnderline && boxEst && (
+                      <rect
+                        x={-boxEst.width * 0.48}
+                        y={boxEst.height / 2 - Math.max(1.5, item.fontSize * 0.08)}
+                        width={boxEst.width * 0.96}
+                        height={Math.max(2, item.fontSize * 0.11)}
+                        rx={Math.max(1, item.fontSize * 0.05)}
+                        fill={item.underlineColor || item.color}
+                      />
+                    )}
+                  </g>
+
+                  {isSelected && (
+                    <g className="editor-only-guide">
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={Math.max(2, w * 0.008)}
+                        fill="#38bdf8"
+                        stroke="#ffffff"
+                        strokeWidth={w * 0.003}
+                      />
                     </g>
                   )}
                 </g>
@@ -4092,17 +4277,232 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1">
-                        <label className="text-xs font-bold text-slate-700 flex items-center gap-2 cursor-pointer">
+                      {/* 斜め・傾き設定（角度回転 ＆ イタリック斜体） */}
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <RotateCw className="w-3.5 h-3.5 text-sky-600" />
+                            文字の斜め・傾き
+                          </span>
+                          {((selectedText.rotation || 0) !== 0 ||
+                            (selectedText.skewAngle || 0) !== 0) && (
+                            <button
+                              type="button"
+                              onClick={() => updateSelectedText({ rotation: 0, skewAngle: 0 })}
+                              className="text-[10px] font-bold text-slate-600 hover:text-sky-700 bg-white border border-slate-300 px-2 py-0.5 rounded"
+                            >
+                              角度リセット
+                            </button>
+                          )}
+                        </div>
+
+                        {/* 全体の傾き角度（rotation） */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="font-bold text-slate-600">
+                              文字全体の角度（傾け配置）
+                            </span>
+                            <span className="font-bold text-sky-700">
+                              {selectedText.rotation || 0}°
+                            </span>
+                          </div>
                           <input
-                            type="checkbox"
-                            checked={selectedText.shadow}
-                            onChange={(e) => updateSelectedText({ shadow: e.target.checked })}
-                            className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4"
+                            type="range"
+                            min="-45"
+                            max="45"
+                            step="1"
+                            value={selectedText.rotation || 0}
+                            onChange={(e) =>
+                              updateSelectedText({ rotation: Number(e.target.value) })
+                            }
+                            className="w-full accent-sky-600"
                           />
-                          立体的な影（ドロップシャドウ）をつける
-                        </label>
+                          <div className="grid grid-cols-5 gap-1 text-[10px]">
+                            {[-15, -5, 0, 5, 15].map((deg) => (
+                              <button
+                                key={deg}
+                                type="button"
+                                onClick={() => updateSelectedText({ rotation: deg })}
+                                className={`py-1 rounded border font-bold transition ${
+                                  (selectedText.rotation || 0) === deg
+                                    ? 'bg-sky-600 text-white border-sky-600'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {deg > 0 ? `+${deg}°` : `${deg}°`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 文字自体の斜体スラント（skewAngle） */}
+                        <div className="space-y-1 pt-1 border-t border-slate-200/80">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="font-bold text-slate-600">
+                              文字の斜体（スピード感・イタリック傾き）
+                            </span>
+                            <span className="font-bold text-sky-700">
+                              {selectedText.skewAngle || 0}°
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-35"
+                            max="35"
+                            step="1"
+                            value={selectedText.skewAngle || 0}
+                            onChange={(e) =>
+                              updateSelectedText({ skewAngle: Number(e.target.value) })
+                            }
+                            className="w-full accent-sky-600"
+                          />
+                          <div className="grid grid-cols-5 gap-1 text-[10px]">
+                            {[-20, -10, 0, 10, 20].map((deg) => (
+                              <button
+                                key={deg}
+                                type="button"
+                                onClick={() => updateSelectedText({ skewAngle: deg })}
+                                className={`py-1 rounded border font-bold transition ${
+                                  (selectedText.skewAngle || 0) === deg
+                                    ? 'bg-sky-600 text-white border-sky-600'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {deg > 0 ? `+${deg}°` : `${deg}°`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
+
+                      {/* 文字の効果（複数同時選択可） */}
+                      {(() => {
+                        const activeEffects = getTextEffects(selectedText);
+                        const toggleEffect = (effectId) => {
+                          const exists = activeEffects.includes(effectId);
+                          const nextEffects = exists
+                            ? activeEffects.filter((id) => id !== effectId)
+                            : [...activeEffects, effectId];
+                          updateSelectedText({
+                            effects: nextEffects,
+                            shadow: nextEffects.includes('shadow'),
+                          });
+                        };
+                        const effectColorFields = [
+                          {
+                            id: 'double_outline',
+                            key: 'doubleOutlineColor',
+                            label: '外フチの色',
+                            fallback: '#ffffff',
+                          },
+                          {
+                            id: 'hard_shadow',
+                            key: 'hardShadowColor',
+                            label: '3D影の色',
+                            fallback: '#0f172a',
+                          },
+                          {
+                            id: 'neon',
+                            key: 'neonColor',
+                            label: 'ネオン発光色',
+                            fallback: selectedText.color || '#38bdf8',
+                          },
+                          {
+                            id: 'highlight_bar',
+                            key: 'highlightBarColor',
+                            label: '背景帯の色',
+                            fallback: '#0f172a',
+                          },
+                          {
+                            id: 'underline',
+                            key: 'underlineColor',
+                            label: 'アンダーライン色',
+                            fallback: selectedText.color || '#dc2626',
+                          },
+                        ].filter((cfg) => activeEffects.includes(cfg.id));
+
+                        return (
+                          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                文字の効果（複数選択可）
+                              </span>
+                              <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full">
+                                {activeEffects.length}個 適用中
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                              {TEXT_EFFECT_OPTIONS.map((fx) => {
+                                const isOn = activeEffects.includes(fx.id);
+                                return (
+                                  <button
+                                    key={fx.id}
+                                    type="button"
+                                    onClick={() => toggleEffect(fx.id)}
+                                    className={`px-2 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 text-left transition ${
+                                      isOn
+                                        ? 'bg-sky-600 border-sky-600 text-white shadow-xs'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <Check
+                                      className={`w-3 h-3 shrink-0 ${
+                                        isOn ? 'text-white' : 'text-slate-300'
+                                      }`}
+                                    />
+                                    <span className="truncate">{fx.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {effectColorFields.length > 0 && (
+                              <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                                {effectColorFields.map((ef) => {
+                                  const curCol = selectedText[ef.key] || ef.fallback;
+                                  return (
+                                    <div
+                                      key={ef.id}
+                                      className="flex items-center justify-between gap-2 bg-white px-2 py-1.5 rounded-lg border border-slate-200"
+                                    >
+                                      <span className="text-[11px] font-bold text-slate-700 shrink-0">
+                                        {ef.label}
+                                      </span>
+                                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                                        <input
+                                          type="color"
+                                          value={curCol}
+                                          onChange={(e) =>
+                                            updateSelectedText({ [ef.key]: e.target.value })
+                                          }
+                                          className="w-6 h-6 rounded cursor-pointer border border-slate-300"
+                                        />
+                                        {['#ffffff', '#000000', '#facc15', '#dc2626', '#0284c7'].map(
+                                          (c) => (
+                                            <button
+                                              key={c}
+                                              type="button"
+                                              onClick={() => updateSelectedText({ [ef.key]: c })}
+                                              className={`w-4 h-4 rounded-full border ${
+                                                curCol.toLowerCase() === c
+                                                  ? 'ring-2 ring-sky-500 scale-110'
+                                                  : 'border-slate-300'
+                                              }`}
+                                              style={{ backgroundColor: c }}
+                                            />
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* 文字の位置指定 */}
