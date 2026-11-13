@@ -459,6 +459,100 @@ const getEffectivePatternColor = (cfg, bgColors) => {
   return isHexLightColor(bgColors[0]) ? '#000000' : '#ffffff';
 };
 
+const NumericValueInput = ({
+  value,
+  min,
+  max,
+  step = 1,
+  unit = '',
+  onChange,
+  ariaLabel,
+  className = '',
+  widthClass = 'w-14',
+  textColorClass = 'text-sky-700',
+}) => {
+  const [draft, setDraft] = useState(String(value));
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setDraft(String(value));
+    }
+  }, [value, isFocused]);
+
+  const toHalfWidthNumber = (raw) =>
+    String(raw).replace(/[０-９．－]/g, (ch) =>
+      ch === '．' ? '.' : ch === '－' ? '-' : String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+    );
+
+  const commitValue = (raw) => {
+    const normalized = toHalfWidthNumber(raw);
+    const num = Number(normalized);
+    if (!Number.isFinite(num) || normalized.trim() === '') {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.max(min, Math.min(max, num));
+    const rounded = step >= 1 ? Math.round(clamped) : Math.round(clamped * 10) / 10;
+    onChange(rounded);
+    setDraft(String(rounded));
+  };
+
+  return (
+    <span className={`inline-flex items-center gap-0.5 shrink-0 ${className}`}>
+      <input
+        type="text"
+        inputMode={step < 1 || min < 0 ? 'decimal' : 'numeric'}
+        aria-label={ariaLabel}
+        value={isFocused ? draft : String(value)}
+        onFocus={(e) => {
+          setIsFocused(true);
+          setDraft(String(value));
+          e.target.select();
+        }}
+        onChange={(e) => {
+          const val = e.target.value;
+          setDraft(val);
+          const normalized = toHalfWidthNumber(val);
+          if (normalized.trim() !== '' && normalized !== '-' && !normalized.endsWith('.')) {
+            const parsed = Number(normalized);
+            if (Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+              onChange(parsed);
+            }
+          }
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          commitValue(draft);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            commitValue(draft);
+            e.currentTarget.blur();
+          } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const parsed = Number(toHalfWidthNumber(draft));
+            const cur = Number.isFinite(parsed) ? parsed : value;
+            const next = cur + (e.key === 'ArrowUp' ? step : -step);
+            const clamped = Math.max(
+              min,
+              Math.min(max, step >= 1 ? Math.round(next) : Math.round(next * 10) / 10)
+            );
+            onChange(clamped);
+            setDraft(String(clamped));
+          } else if (e.key === 'Escape') {
+            setIsFocused(false);
+            setDraft(String(value));
+            e.currentTarget.blur();
+          }
+        }}
+        className={`${widthClass} text-right font-bold text-xs ${textColorClass} bg-white border border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-400 rounded px-1.5 py-0.5 outline-none`}
+      />
+      {unit && <span className="text-[11px] font-bold text-slate-500">{unit}</span>}
+    </span>
+  );
+};
+
 const AI_STYLE_CHIPS = [
   '類語提示',
   '四字熟語風にかっこよく',
@@ -4621,11 +4715,19 @@ ${
 
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <div className="flex justify-between text-[11px] mb-1">
+                          <div className="flex justify-between items-center text-[11px] mb-1">
                             <span className="font-bold text-slate-600">大きさ</span>
-                            <span className="text-emerald-700 font-bold">
-                              {selectedImageLayer.widthPercent}%
-                            </span>
+                            <NumericValueInput
+                              value={selectedImageLayer.widthPercent}
+                              min={4}
+                              max={100}
+                              step={1}
+                              unit="%"
+                              widthClass="w-11"
+                              textColorClass="text-emerald-700"
+                              ariaLabel="画像の大きさ数値"
+                              onChange={(v) => updateSelectedImageLayer({ widthPercent: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -4642,11 +4744,19 @@ ${
                           />
                         </div>
                         <div>
-                          <div className="flex justify-between text-[11px] mb-1">
+                          <div className="flex justify-between items-center text-[11px] mb-1">
                             <span className="font-bold text-slate-600">回転</span>
-                            <span className="text-emerald-700 font-bold">
-                              {selectedImageLayer.rotation}°
-                            </span>
+                            <NumericValueInput
+                              value={selectedImageLayer.rotation}
+                              min={-180}
+                              max={180}
+                              step={1}
+                              unit="°"
+                              widthClass="w-11"
+                              textColorClass="text-emerald-700"
+                              ariaLabel="画像の回転角度数値"
+                              onChange={(v) => updateSelectedImageLayer({ rotation: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -4663,11 +4773,19 @@ ${
                           />
                         </div>
                         <div>
-                          <div className="flex justify-between text-[11px] mb-1">
+                          <div className="flex justify-between items-center text-[11px] mb-1">
                             <span className="font-bold text-slate-600">不透明度</span>
-                            <span className="text-emerald-700 font-bold">
-                              {selectedImageLayer.opacity}%
-                            </span>
+                            <NumericValueInput
+                              value={selectedImageLayer.opacity}
+                              min={10}
+                              max={100}
+                              step={5}
+                              unit="%"
+                              widthClass="w-11"
+                              textColorClass="text-emerald-700"
+                              ariaLabel="画像の不透明度数値"
+                              onChange={(v) => updateSelectedImageLayer({ opacity: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -5051,9 +5169,16 @@ ${
                     {/* 文字サイズと字間 */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <div className="flex justify-between text-xs mb-1">
+                        <div className="flex justify-between items-center text-xs mb-1">
                           <span className="font-bold text-slate-700">文字サイズ</span>
-                          <span className="text-sky-700 font-bold">{selectedText.fontSize}</span>
+                          <NumericValueInput
+                            value={selectedText.fontSize}
+                            min={5}
+                            max={120}
+                            step={1}
+                            ariaLabel="文字サイズ数値"
+                            onChange={(v) => updateSelectedText({ fontSize: v })}
+                          />
                         </div>
                         <input
                           type="range"
@@ -5068,11 +5193,16 @@ ${
                         />
                       </div>
                       <div>
-                        <div className="flex justify-between text-xs mb-1">
+                        <div className="flex justify-between items-center text-xs mb-1">
                           <span className="font-bold text-slate-700">文字間隔</span>
-                          <span className="text-sky-700 font-bold">
-                            {selectedText.letterSpacing}
-                          </span>
+                          <NumericValueInput
+                            value={selectedText.letterSpacing}
+                            min={-2}
+                            max={30}
+                            step={1}
+                            ariaLabel="文字間隔数値"
+                            onChange={(v) => updateSelectedText({ letterSpacing: v })}
+                          />
                         </div>
                         <input
                           type="range"
@@ -5142,11 +5272,16 @@ ${
                         </div>
 
                         <div>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between items-center text-xs mb-1">
                             <span className="font-bold text-slate-700">フチの太さ</span>
-                            <span className="text-sky-700 font-bold">
-                              {selectedText.strokeWidth}
-                            </span>
+                            <NumericValueInput
+                              value={selectedText.strokeWidth}
+                              min={0}
+                              max={8}
+                              step={0.5}
+                              ariaLabel="フチの太さ数値"
+                              onChange={(v) => updateSelectedText({ strokeWidth: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -5183,13 +5318,19 @@ ${
 
                         {/* 全体の傾き角度（rotation） */}
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
+                          <div className="flex justify-between items-center text-[11px]">
                             <span className="font-bold text-slate-600">
                               文字全体の角度（傾け配置）
                             </span>
-                            <span className="font-bold text-sky-700">
-                              {selectedText.rotation || 0}°
-                            </span>
+                            <NumericValueInput
+                              value={selectedText.rotation || 0}
+                              min={-45}
+                              max={45}
+                              step={1}
+                              unit="°"
+                              ariaLabel="文字全体の角度数値"
+                              onChange={(v) => updateSelectedText({ rotation: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -5222,13 +5363,19 @@ ${
 
                         {/* 文字自体の斜体スラント（skewAngle） */}
                         <div className="space-y-1 pt-1 border-t border-slate-200/80">
-                          <div className="flex justify-between text-[11px]">
+                          <div className="flex justify-between items-center text-[11px]">
                             <span className="font-bold text-slate-600">
                               文字の斜体（スピード感・イタリック傾き）
                             </span>
-                            <span className="font-bold text-sky-700">
-                              {selectedText.skewAngle || 0}°
-                            </span>
+                            <NumericValueInput
+                              value={selectedText.skewAngle || 0}
+                              min={-35}
+                              max={35}
+                              step={1}
+                              unit="°"
+                              ariaLabel="文字の斜体角度数値"
+                              onChange={(v) => updateSelectedText({ skewAngle: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -5498,9 +5645,18 @@ ${
 
                       <div className="grid grid-cols-2 gap-3 pt-1">
                         <div>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between items-center text-xs mb-1">
                             <span className="text-slate-600 font-medium">横位置 (X)</span>
-                            <span className="font-bold text-slate-800">{selectedText.x}%</span>
+                            <NumericValueInput
+                              value={selectedText.x}
+                              min={0}
+                              max={100}
+                              step={0.5}
+                              unit="%"
+                              textColorClass="text-slate-800"
+                              ariaLabel="横位置 X 数値"
+                              onChange={(v) => alignSelectedTexts({ x: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -5515,9 +5671,18 @@ ${
                           />
                         </div>
                         <div>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between items-center text-xs mb-1">
                             <span className="text-slate-600 font-medium">縦位置 (Y)</span>
-                            <span className="font-bold text-slate-800">{selectedText.y}%</span>
+                            <NumericValueInput
+                              value={selectedText.y}
+                              min={0}
+                              max={100}
+                              step={0.5}
+                              unit="%"
+                              textColorClass="text-slate-800"
+                              ariaLabel="縦位置 Y 数値"
+                              onChange={(v) => alignSelectedTexts({ y: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -5839,13 +6004,28 @@ ${
                             </button>
                           </div>
                           <div>
-                            <div className="flex justify-between text-[11px] mb-1">
+                            <div className="flex justify-between items-center text-[11px] mb-1">
                               <span className="font-bold text-slate-700">
                                 AI背景の濃さ（文字を読みやすく控えめにもできます）
                               </span>
-                              <span className="font-bold text-violet-700">
-                                {bgConfig.aiDesign?.opacity ?? 100}%
-                              </span>
+                              <NumericValueInput
+                                value={bgConfig.aiDesign?.opacity ?? 100}
+                                min={20}
+                                max={100}
+                                step={5}
+                                unit="%"
+                                textColorClass="text-violet-700"
+                                ariaLabel="AI背景の濃さ数値"
+                                onChange={(v) =>
+                                  setBgConfig((prev) => ({
+                                    ...prev,
+                                    aiDesign: {
+                                      ...(prev.aiDesign || {}),
+                                      opacity: v,
+                                    },
+                                  }))
+                                }
+                              />
                             </div>
                             <input
                               type="range"
@@ -6133,9 +6313,15 @@ ${
                                         />
                                       </span>
                                     </span>
-                                    <span className="text-sky-700 font-bold">
-                                      {Math.round(splitVal)}%
-                                    </span>
+                                    <NumericValueInput
+                                      value={Math.round(splitVal)}
+                                      min={1}
+                                      max={99}
+                                      step={1}
+                                      unit="%"
+                                      ariaLabel={`境目 ${sIdx + 1} の位置数値`}
+                                      onChange={(v) => updateBgSplitAt(sIdx, v)}
+                                    />
                                   </div>
                                   <input
                                     type="range"
@@ -6154,15 +6340,23 @@ ${
                             {/* 斜め分け：傾き調整 */}
                             {bgConfig.type === 'split_diag' && (
                               <div className="pt-1.5 border-t border-slate-100">
-                                <div className="flex justify-between text-[11px] mb-1">
+                                <div className="flex justify-between items-center text-[11px] mb-1">
                                   <span className="font-bold text-slate-600">
                                     斜めの傾き（向き・角度）
                                   </span>
-                                  <span className="text-sky-700 font-bold">
-                                    {(bgConfig.splitDiagSkew ?? 14) === 0
-                                      ? '0 (垂直)'
-                                      : `${(bgConfig.splitDiagSkew ?? 14) > 0 ? '+' : ''}${bgConfig.splitDiagSkew ?? 14}`}
-                                  </span>
+                                  <NumericValueInput
+                                    value={bgConfig.splitDiagSkew ?? 14}
+                                    min={-45}
+                                    max={45}
+                                    step={1}
+                                    ariaLabel="斜め分けの傾き数値"
+                                    onChange={(v) =>
+                                      setBgConfig({
+                                        ...bgConfig,
+                                        splitDiagSkew: v,
+                                      })
+                                    }
+                                  />
                                 </div>
                                 <input
                                   type="range"
@@ -6188,13 +6382,23 @@ ${
                             bgConfig.type === 'stripe_diag') && (
                             <div className="space-y-2.5 bg-white p-2.5 rounded-lg border border-slate-200">
                               <div>
-                                <div className="flex justify-between text-xs mb-1">
+                                <div className="flex justify-between items-center text-xs mb-1">
                                   <span className="font-bold text-slate-700">
                                     しましまの細かさ（繰り返し数）
                                   </span>
-                                  <span className="text-sky-700 font-bold">
-                                    {bgConfig.stripeDensity ?? 6}
-                                  </span>
+                                  <NumericValueInput
+                                    value={bgConfig.stripeDensity ?? 6}
+                                    min={2}
+                                    max={20}
+                                    step={1}
+                                    ariaLabel="しましまの細かさ数値"
+                                    onChange={(v) =>
+                                      setBgConfig({
+                                        ...bgConfig,
+                                        stripeDensity: v,
+                                      })
+                                    }
+                                  />
                                 </div>
                                 <input
                                   type="range"
@@ -6212,13 +6416,24 @@ ${
                                 />
                               </div>
                               <div>
-                                <div className="flex justify-between text-xs mb-1">
+                                <div className="flex justify-between items-center text-xs mb-1">
                                   <span className="font-bold text-slate-700">
                                     しましまの位置（開始位置ズレ）
                                   </span>
-                                  <span className="text-sky-700 font-bold">
-                                    {bgConfig.stripeOffset ?? 0}%
-                                  </span>
+                                  <NumericValueInput
+                                    value={bgConfig.stripeOffset ?? 0}
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    unit="%"
+                                    ariaLabel="しましまの位置ズレ数値"
+                                    onChange={(v) =>
+                                      setBgConfig({
+                                        ...bgConfig,
+                                        stripeOffset: v,
+                                      })
+                                    }
+                                  />
                                 </div>
                                 <input
                                   type="range"
@@ -6238,13 +6453,24 @@ ${
                               </div>
                               {bgConfig.type === 'stripe_diag' && (
                                 <div>
-                                  <div className="flex justify-between text-xs mb-1">
+                                  <div className="flex justify-between items-center text-xs mb-1">
                                     <span className="font-bold text-slate-700">
                                       斜めの角度
                                     </span>
-                                    <span className="text-sky-700 font-bold">
-                                      {bgConfig.stripeAngle ?? 35}°
-                                    </span>
+                                    <NumericValueInput
+                                      value={bgConfig.stripeAngle ?? 35}
+                                      min={5}
+                                      max={175}
+                                      step={1}
+                                      unit="°"
+                                      ariaLabel="斜めしましまの角度数値"
+                                      onChange={(v) =>
+                                        setBgConfig({
+                                          ...bgConfig,
+                                          stripeAngle: v,
+                                        })
+                                      }
+                                    />
                                   </div>
                                   <input
                                     type="range"
@@ -6456,11 +6682,22 @@ ${
                               </div>
                             </div>
                             <div>
-                              <div className="flex justify-between text-[11px] mb-1">
+                              <div className="flex justify-between items-center text-[11px] mb-1">
                                 <span className="font-bold text-slate-600">模様の濃さ</span>
-                                <span className="font-bold text-sky-700">
-                                  {Math.round((bgConfig.patternStrength ?? 1) * 100)}%
-                                </span>
+                                <NumericValueInput
+                                  value={Math.round((bgConfig.patternStrength ?? 1) * 100)}
+                                  min={40}
+                                  max={250}
+                                  step={10}
+                                  unit="%"
+                                  ariaLabel="模様の濃さ数値"
+                                  onChange={(v) =>
+                                    setBgConfig({
+                                      ...bgConfig,
+                                      patternStrength: Math.round((v / 100) * 10) / 10,
+                                    })
+                                  }
+                                />
                               </div>
                               <input
                                 type="range"
@@ -6534,9 +6771,16 @@ ${
                           </div>
                         </div>
                         <div>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between items-center text-xs mb-1">
                             <span className="font-bold text-slate-700">枠の太さ</span>
-                            <span className="text-sky-700 font-bold">{bgConfig.borderWidth}</span>
+                            <NumericValueInput
+                              value={bgConfig.borderWidth}
+                              min={1}
+                              max={10}
+                              step={0.5}
+                              ariaLabel="枠の太さ数値"
+                              onChange={(v) => setBgConfig({ ...bgConfig, borderWidth: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -6686,9 +6930,18 @@ ${
                   </p>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      比較する人物の身長: <span className="text-sky-700">{personHeight} cm</span>
-                    </label>
+                    <div className="flex justify-between items-center text-xs mb-1.5">
+                      <span className="font-bold text-slate-700">比較する人物の身長</span>
+                      <NumericValueInput
+                        value={personHeight}
+                        min={130}
+                        max={195}
+                        step={1}
+                        unit="cm"
+                        ariaLabel="人物の身長数値"
+                        onChange={(v) => setPersonHeight(v)}
+                      />
+                    </div>
                     <div className="grid grid-cols-4 gap-1.5 text-xs mb-2">
                       {[150, 160, 170, 180].map((h) => (
                         <button
@@ -7030,9 +7283,17 @@ ${
                       {/* 画像の不透明度＆明暗オーバーレイ調整 */}
                       <div className="grid grid-cols-2 gap-3 pt-1">
                         <div>
-                          <div className="flex justify-between text-[11px] mb-1">
+                          <div className="flex justify-between items-center text-[11px] mb-1">
                             <span className="font-bold text-slate-600">画像の濃さ</span>
-                            <span className="font-bold text-sky-700">{bgImage.opacity}%</span>
+                            <NumericValueInput
+                              value={bgImage.opacity}
+                              min={10}
+                              max={100}
+                              step={5}
+                              unit="%"
+                              ariaLabel="背景画像の濃さ数値"
+                              onChange={(v) => setBgImage({ ...bgImage, opacity: v })}
+                            />
                           </div>
                           <input
                             type="range"
@@ -7047,15 +7308,17 @@ ${
                           />
                         </div>
                         <div>
-                          <div className="flex justify-between text-[11px] mb-1">
+                          <div className="flex justify-between items-center text-[11px] mb-1">
                             <span className="font-bold text-slate-600">背景の明暗補正</span>
-                            <span className="font-bold text-sky-700">
-                              {bgImage.darkOverlay > 0
-                                ? `暗く ${bgImage.darkOverlay}%`
-                                : bgImage.darkOverlay < 0
-                                ? `明るく ${Math.abs(bgImage.darkOverlay)}%`
-                                : '0%'}
-                            </span>
+                            <NumericValueInput
+                              value={bgImage.darkOverlay}
+                              min={-70}
+                              max={70}
+                              step={5}
+                              unit="%"
+                              ariaLabel="背景の明暗補正数値"
+                              onChange={(v) => setBgImage({ ...bgImage, darkOverlay: v })}
+                            />
                           </div>
                           <input
                             type="range"
