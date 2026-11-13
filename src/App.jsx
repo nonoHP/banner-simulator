@@ -44,7 +44,9 @@ import {
   Star,
   Heart,
   Undo2,
-  Redo2
+  Redo2,
+  Share2,
+  Link2
 } from 'lucide-react';
 
 // --- 定数・プリセット定義 ---
@@ -457,6 +459,41 @@ const getEffectivePatternColor = (cfg, bgColors) => {
   if (cfg?.patternTone === 'light') return '#ffffff';
   if (cfg?.patternTone === 'dark') return '#000000';
   return isHexLightColor(bgColors[0]) ? '#000000' : '#ffffff';
+};
+
+const encodeDesignToShareHash = (dataObj) => {
+  try {
+    const jsonStr = JSON.stringify(dataObj);
+    const bytes = new TextEncoder().encode(jsonStr);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) {
+      bin += String.fromCharCode(bytes[i]);
+    }
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch {
+    return null;
+  }
+};
+
+const decodeDesignFromShareHash = (hashStr) => {
+  try {
+    if (!hashStr || !hashStr.includes('design=')) return null;
+    const m = hashStr.match(/design=([A-Za-z0-9\-_]+)/);
+    if (!m) return null;
+    let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    const jsonStr = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(jsonStr);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.texts)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 };
 
 const NumericValueInput = ({
@@ -1169,6 +1206,34 @@ export default function App() {
   const [selectedFavoriteIds, setSelectedFavoriteIds] = useState([]);
   const [editingFavoriteId, setEditingFavoriteId] = useState(null);
   const [editingFavoriteTitle, setEditingFavoriteTitle] = useState('');
+
+  // スマホ・LINE等向け デザイン共有モーダル用ステート
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isPreparingShare, setIsPreparingShare] = useState(false);
+  const [shareData, setShareData] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  // 共有リンク (#design=...) からの初期デザイン復元
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const decoded = decodeDesignFromShareHash(window.location.hash);
+    if (!decoded) return;
+    if (Number.isFinite(Number(decoded.w))) setBannerWidth(Number(decoded.w));
+    if (Number.isFinite(Number(decoded.h))) setBannerHeight(Number(decoded.h));
+    if (decoded.bg && typeof decoded.bg === 'object') setBgConfig(decoded.bg);
+    if (typeof decoded.sh === 'boolean') setShowTextsOnBanner(decoded.sh);
+    if (Number.isFinite(Number(decoded.ph))) setPersonHeight(Number(decoded.ph));
+    if (Number.isFinite(Number(decoded.pc))) setPersonCount(Number(decoded.pc));
+    if (typeof decoded.hs === 'string') setHoldStyle(decoded.hs);
+    if (Array.isArray(decoded.texts) && decoded.texts.length > 0) {
+      setTexts(decoded.texts);
+      setSelectedTextId(decoded.texts[0].id);
+      setSelectedTextIds([decoded.texts[0].id]);
+    }
+    setToastMsg('共有されたデザインを読み込みました！');
+    const t = setTimeout(() => setToastMsg(null), 3200);
+    return () => clearTimeout(t);
+  }, []);
 
   const persistFavorites = (nextList) => {
     try {
@@ -2751,70 +2816,245 @@ ${
     return `${datePrefix}_${safeBody}${suffix}.png`;
   };
 
+  // --- SVG → PNG Blob 生成共通ヘルパー ---
+  const svgToPngBlob = async (svgElement, exportWidthPx = 1600) => {
+    if (!svgElement) return null;
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
+    const clone = svgElement.cloneNode(true);
+    const guides = clone.querySelectorAll('.editor-only-guide');
+    guides.forEach((g) => g.remove());
+
+    const viewBox = clone.getAttribute('viewBox').split(' ').map(Number);
+    const vbWidth = viewBox[2];
+    const vbHeight = viewBox[3];
+    const exportHeightPx = Math.round((exportWidthPx * vbHeight) / vbWidth);
+
+    clone.setAttribute('width', exportWidthPx);
+    clone.setAttribute('height', exportHeightPx);
+
+    const embeddedFontCss = await buildEmbeddedFontStyleCss(clone);
+    if (embeddedFontCss) {
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.setAttribute('type', 'text/css');
+      styleEl.textContent = embeddedFontCss;
+      clone.insertBefore(styleEl, clone.firstChild);
+    }
+
+    const svgData = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            if (img.decode) {
+              await img.decode().catch(() => {});
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = exportWidthPx;
+            canvas.height = exportHeightPx;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, exportWidthPx, exportHeightPx);
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('PNG Blob の生成に失敗しました'));
+              }
+            }, 'image/png');
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = () => reject(new Error('SVG画像の読み込みに失敗しました'));
+        img.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const triggerBlobDownload = (blob, filename) => {
+    const blobUrl = URL.createObjectURL(blob);
+    const downloadLink = document.createElement('a');
+    downloadLink.href = blobUrl;
+    downloadLink.download = filename;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+  };
+
   // --- PNG画像ダウンロード処理 ---
   const downloadSvgAsPng = async (svgElement, filename, exportWidthPx = 1600) => {
     if (!svgElement) return;
     try {
-      if (document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-      }
-
-      const clone = svgElement.cloneNode(true);
-      const guides = clone.querySelectorAll('.editor-only-guide');
-      guides.forEach((g) => g.remove());
-
-      const viewBox = clone.getAttribute('viewBox').split(' ').map(Number);
-      const vbWidth = viewBox[2];
-      const vbHeight = viewBox[3];
-      const exportHeightPx = Math.round((exportWidthPx * vbHeight) / vbWidth);
-
-      clone.setAttribute('width', exportWidthPx);
-      clone.setAttribute('height', exportHeightPx);
-
-      const embeddedFontCss = await buildEmbeddedFontStyleCss(clone);
-      if (embeddedFontCss) {
-        const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-        styleEl.setAttribute('type', 'text/css');
-        styleEl.textContent = embeddedFontCss;
-        clone.insertBefore(styleEl, clone.firstChild);
-      }
-
-      const svgData = new XMLSerializer().serializeToString(clone);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
-
-      const img = new Image();
-      img.onload = async () => {
-        try {
-          if (img.decode) {
-            await img.decode().catch(() => {});
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = exportWidthPx;
-          canvas.height = exportHeightPx;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, exportWidthPx, exportHeightPx);
-
-          const pngUrl = canvas.toDataURL('image/png');
-          const downloadLink = document.createElement('a');
-          downloadLink.href = pngUrl;
-          downloadLink.download = filename;
-          document.body.appendChild(downloadLink);
-          downloadLink.click();
-          document.body.removeChild(downloadLink);
-          showToast(`${filename} を保存しました`);
-        } finally {
-          URL.revokeObjectURL(url);
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        showToast('画像の書き出しに失敗しました');
-      };
-      img.src = url;
+      const blob = await svgToPngBlob(svgElement, exportWidthPx);
+      if (!blob) throw new Error('PNG生成エラー');
+      triggerBlobDownload(blob, filename);
+      showToast(`${filename} を保存しました`);
     } catch (err) {
       console.error(err);
       showToast('画像の書き出しに失敗しました');
+    }
+  };
+
+  // --- スマホ・LINE向けデザイン共有モーダル制御 ---
+  const revokeSharePreviews = (data) => {
+    if (data?.designPreviewUrl) URL.revokeObjectURL(data.designPreviewUrl);
+    if (data?.comparePreviewUrl) URL.revokeObjectURL(data.comparePreviewUrl);
+  };
+
+  const closeShareModal = () => {
+    revokeSharePreviews(shareData);
+    setShareData(null);
+    setShareCopied(false);
+    setIsShareOpen(false);
+  };
+
+  const openShareModal = async () => {
+    revokeSharePreviews(shareData);
+    setShareCopied(false);
+    setIsShareOpen(true);
+    setIsPreparingShare(true);
+
+    const baseUrl =
+      typeof window !== 'undefined' ? window.location.href.split('#')[0] : '';
+    const encoded = encodeDesignToShareHash({
+      w: bannerWidth,
+      h: bannerHeight,
+      bg: bgConfig,
+      sh: showTextsOnBanner,
+      ph: personHeight,
+      pc: personCount,
+      hs: holdStyle,
+      texts,
+    });
+    const fullCandidateUrl = encoded ? `${baseUrl}#design=${encoded}` : baseUrl;
+    const isUrlTooLong = fullCandidateUrl.length > 6500;
+    const shareUrl = isUrlTooLong ? baseUrl : fullCandidateUrl;
+
+    const mainSummary = texts
+      .map((t) => t.text.replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join(' ')
+      .slice(0, 60);
+    const shareText = `横断幕デザインを作成しました！（横${bannerWidth}cm×縦${bannerHeight}cm）${
+      mainSummary ? `\n「${mainSummary}」` : ''
+    }`;
+
+    const designFilename = buildBannerDownloadFilename(texts);
+    const compareFilename = buildBannerDownloadFilename(texts, '_比較図');
+
+    let designFile = null;
+    let designPreviewUrl = null;
+    let compareFile = null;
+    let comparePreviewUrl = null;
+    let canShareFiles = false;
+
+    try {
+      const [designBlob, compareBlob] = await Promise.all([
+        svgEditRef.current ? svgToPngBlob(svgEditRef.current, 1800).catch(() => null) : null,
+        svgScaleRef.current ? svgToPngBlob(svgScaleRef.current, 1600).catch(() => null) : null,
+      ]);
+
+      if (designBlob) {
+        designFile = new File([designBlob], designFilename, { type: 'image/png' });
+        designPreviewUrl = URL.createObjectURL(designBlob);
+      }
+      if (compareBlob) {
+        compareFile = new File([compareBlob], compareFilename, { type: 'image/png' });
+        comparePreviewUrl = URL.createObjectURL(compareBlob);
+      }
+
+      const testFile = designFile || compareFile;
+      if (
+        testFile &&
+        typeof navigator !== 'undefined' &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function'
+      ) {
+        canShareFiles = navigator.canShare({ files: [testFile] });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
+    setShareData({
+      designFile,
+      designPreviewUrl,
+      designFilename,
+      compareFile,
+      comparePreviewUrl,
+      compareFilename,
+      shareUrl,
+      shareText,
+      isUrlTooLong,
+      hasCustomImages: Boolean(bgImage) || imageLayers.length > 0,
+      canShareFiles,
+    });
+    setIsPreparingShare(false);
+  };
+
+  const handleShareImageFile = async (kind) => {
+    if (!shareData) return;
+    const file = kind === 'compare' ? shareData.compareFile : shareData.designFile;
+    const filename =
+      kind === 'compare' ? shareData.compareFilename : shareData.designFilename;
+    if (!file) {
+      showToast('現在の表示モードではこの画像を生成できませんでした');
+      return;
+    }
+
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [file] })
+    ) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: '横断幕作成ツール - デザイン共有',
+          text: shareData.shareText,
+        });
+        showToast('共有シートを開きました');
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.error(err);
+      }
+    }
+
+    // 非対応ブラウザ向けフォールバック：画像を保存し案内
+    triggerBlobDownload(file, filename);
+    showToast(`${filename} を保存しました（画像を選択してLINE等で送信できます）`);
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareData?.shareUrl) return;
+    const textToCopy = `${shareData.shareText}\n${shareData.shareUrl}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = textToCopy;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setShareCopied(true);
+      showToast('共有テキストとリンクをコピーしました！');
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch {
+      showToast('コピーに失敗しました');
     }
   };
 
@@ -4343,6 +4583,15 @@ ${
             >
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">比較図を保存</span>
+            </button>
+            <button
+              onClick={openShareModal}
+              className="bg-[#06C755] hover:bg-[#05b34c] text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 transition"
+              title="スマホ・LINE等へデザインや比較図、編集リンクを共有"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="sm:hidden">共有</span>
+              <span className="hidden sm:inline">デザイン共有</span>
             </button>
           </div>
         </div>
@@ -7919,6 +8168,204 @@ ${
           </div>
         );
       })()}
+
+      {/* デザイン共有モーダル（スマホ・LINE共有向け） */}
+      {isShareOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={closeShareModal}
+        >
+          <div
+            className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-[#06C755]/15 text-[#05a847] flex items-center justify-center">
+                  <Share2 className="w-4 h-4" />
+                </span>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                    デザインを共有
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    LINEなどへ画像や編集リンクをすぐ送れます
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeShareModal}
+                className="w-8 h-8 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/70 flex items-center justify-center text-base font-bold transition"
+                aria-label="共有モーダルを閉じる"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {isPreparingShare || !shareData ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-600">
+                  <div className="w-8 h-8 rounded-full border-3 border-slate-200 border-t-[#06C755] animate-spin" />
+                  <p className="text-xs sm:text-sm font-medium">
+                    共有用の画像とリンクを準備しています...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* 画像共有セクション */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* デザイン単体 */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">
+                          横断幕デザイン画像
+                        </span>
+                        <span className="text-[10px] text-slate-500">PNG</span>
+                      </div>
+                      {shareData.designPreviewUrl ? (
+                        <div className="bg-white rounded-lg border border-slate-200 p-1.5 flex items-center justify-center h-24 overflow-hidden">
+                          <img
+                            src={shareData.designPreviewUrl}
+                            alt="共有用横断幕デザイン"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="bg-slate-100 rounded-lg h-24 flex items-center justify-center text-xs text-slate-400">
+                          プレビュー生成失敗
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleShareImageFile('design')}
+                        disabled={!shareData.designFile}
+                        className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                      >
+                        {shareData.canShareFiles ? (
+                          <Share2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Download className="w-3.5 h-3.5" />
+                        )}
+                        <span>
+                          {shareData.canShareFiles
+                            ? '画像をLINE等で共有'
+                            : 'デザイン画像を保存'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* サイズ比較図 */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">
+                          人物サイズ比較図
+                        </span>
+                        <span className="text-[10px] text-slate-500">PNG</span>
+                      </div>
+                      {shareData.comparePreviewUrl ? (
+                        <div className="bg-white rounded-lg border border-slate-200 p-1.5 flex items-center justify-center h-24 overflow-hidden">
+                          <img
+                            src={shareData.comparePreviewUrl}
+                            alt="共有用人物サイズ比較図"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="bg-slate-100 rounded-lg h-24 flex items-center justify-center text-xs text-slate-400">
+                          プレビュー生成失敗
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleShareImageFile('compare')}
+                        disabled={!shareData.compareFile}
+                        className="w-full py-2 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                      >
+                        {shareData.canShareFiles ? (
+                          <Share2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Download className="w-3.5 h-3.5" />
+                        )}
+                        <span>
+                          {shareData.canShareFiles
+                            ? '比較図をLINE等で共有'
+                            : '比較図画像を保存'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* LINE送信・リンクコピーセクション */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Link2 className="w-3.5 h-3.5 text-sky-600" />
+                        <span>LINEで送る / 編集リンクコピー</span>
+                      </span>
+                      {!shareData.isUrlTooLong && (
+                        <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          デザイン復元リンク対応
+                        </span>
+                      )}
+                    </div>
+
+                    {(shareData.hasCustomImages || shareData.isUrlTooLong) && (
+                      <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 space-y-1 leading-relaxed">
+                        {shareData.hasCustomImages && (
+                          <p>
+                            ※ アップロードした画像や背景イラストはURLに含まれないため、見た目そのものの共有は上の「画像共有」がおすすめです。
+                          </p>
+                        )}
+                        {shareData.isUrlTooLong && (
+                          <p>
+                            ※ データ量が大きいためリンクはトップURLになります。画像共有ボタンから画像を送信してください。
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <a
+                        href={`https://line.me/R/share?text=${encodeURIComponent(
+                          `${shareData.shareText}\n${shareData.shareUrl}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 px-3 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm transition text-center"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        <span>LINEで直接送る</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyShareLink}
+                        className={`w-full py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-sm border transition ${
+                          shareCopied
+                            ? 'bg-sky-600 border-sky-600 text-white'
+                            : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800'
+                        }`}
+                      >
+                        <Link2 className="w-4 h-4" />
+                        <span>
+                          {shareCopied
+                            ? 'コピーしました！'
+                            : 'リンク・文章をコピー'}
+                        </span>
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      ※ スマホ（iOS / Android）では上の「画像をLINE等で共有」を押すと、端末の共有メニューからLINEトークへ画像を直接送信できます。
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
