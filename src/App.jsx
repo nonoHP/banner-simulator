@@ -821,7 +821,7 @@ export default function App() {
 
     setIsOcrLoading(true);
     setOcrError(null);
-    setActiveTab('size_bg');
+    setActiveTab('template');
 
     try {
       // 1. DataURL と画像サイズを取得
@@ -2851,7 +2851,7 @@ export default function App() {
             />
             <button
               onClick={() => {
-                setActiveTab('size_bg');
+                setActiveTab('template');
                 bgImageInputRef.current?.click();
               }}
               className="bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 transition"
@@ -2956,7 +2956,7 @@ export default function App() {
               }`}
             >
               <Palette className="w-4 h-4" />
-              <span>サイズ・画像</span>
+              <span>サイズ・背景</span>
             </button>
             <button
               onClick={() => setActiveTab('human')}
@@ -2978,7 +2978,7 @@ export default function App() {
               }`}
             >
               <Sparkles className="w-4 h-4" />
-              <span>テンプレ</span>
+              <span>テンプレ・取込</span>
             </button>
           </div>
 
@@ -4057,284 +4057,9 @@ export default function App() {
               </div>
             )}
 
-            {/* ==================== タブ3: サイズ・背景・OCR ==================== */}
+            {/* ==================== タブ3: サイズ・背景 ==================== */}
             {activeTab === 'size_bg' && (
               <div className="space-y-5">
-                {/* ★新規追加：AI画像OCR文字読み取り＆デザイン復元セクション */}
-                <div className="bg-gradient-to-br from-orange-50 via-amber-50/80 to-yellow-50/60 p-3.5 rounded-xl border-2 border-orange-300 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-orange-950 flex items-center gap-1.5">
-                      <ScanText className="w-4 h-4 text-orange-600" />
-                      📷 画像からOCR文字読み取り＆デザイン自動復元
-                    </h3>
-                    <span className="text-[10px] bg-orange-200 text-orange-900 px-2 py-0.5 rounded-full font-bold">
-                      AI OCR搭載
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-700 leading-relaxed">
-                    横断幕の写真やスクリーンショットをアップロードすると、AIが<strong>「書かれている文言・位置・文字色・背景色・縦書き/横書き」を自動で読み取り、後から文字を自由に書き換えられる状態</strong>に復元します。
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => ocrFileInputRef.current?.click()}
-                    disabled={isOcrLoading}
-                    className="w-full py-2.5 px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-2"
-                  >
-                    {isOcrLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        画像内の文字・配色・レイアウトをOCR解析中...
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="w-4 h-4" />
-                        横断幕の画像を選択してOCRで文字を読み取る
-                      </>
-                    )}
-                  </button>
-
-                  {ocrError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{ocrError}</span>
-                    </div>
-                  )}
-
-                  {/* OCR解析結果プレビュー＆反映モード切替 */}
-                  {ocrResult && (
-                    <div className="bg-white p-3 rounded-xl border border-orange-200 space-y-2.5">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                        <span className="text-xs font-bold text-slate-800">
-                          ✅ 読み取った文字レイヤー ({ocrResult.texts?.length || 0}件)
-                        </span>
-                        <div className="flex items-center gap-1.5 text-[11px]">
-                          <span className="text-slate-500">検出背景色:</span>
-                          <span
-                            className="w-4 h-4 rounded border border-slate-300 inline-block"
-                            style={{ backgroundColor: ocrResult.bgColor1 }}
-                            title={ocrResult.bgColor1}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                        {ocrResult.texts?.map((t, i) => (
-                          <span
-                            key={i}
-                            className="text-[11px] bg-orange-50 border border-orange-200 text-orange-950 px-2 py-0.5 rounded font-bold"
-                          >
-                            {t.text.replace(/\n/g, ' ')}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => applyOcrResultToCanvas(ocrResult, 'reconstruct')}
-                          className="w-full py-1.5 px-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          テキスト＋背景色として完全復元（文字を自由に編集する）
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyOcrResultToCanvas(ocrResult, 'overlay')}
-                          className="w-full py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5"
-                        >
-                          <Layers className="w-3.5 h-3.5" />
-                          元画像を半透明で下に敷いて文字を重ねる（位置合わせ用）
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 横断幕画像（完成データ・背景写真）のそのまま読み込みセクション (Mode A) */}
-                <div className="bg-sky-50/70 p-3.5 rounded-xl border border-sky-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
-                      <ImageIcon className="w-4 h-4 text-sky-600" />
-                      横断幕画像の読み込み（完成画像・背景写真）
-                    </h3>
-                    {bgImage && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBgImage(null);
-                          setShowTextsOnBanner(true);
-                          showToast('読み込んだ横断幕画像を解除しました');
-                        }}
-                        className="text-[11px] text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        画像を削除
-                      </button>
-                    )}
-                  </div>
-
-                  {!bgImage ? (
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setIsBgImageDragging(true);
-                      }}
-                      onDragLeave={() => setIsBgImageDragging(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsBgImageDragging(false);
-                        handleUploadBannerBgImage(e.dataTransfer.files);
-                      }}
-                      onClick={() => bgImageInputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${
-                        isBgImageDragging
-                          ? 'border-sky-500 bg-sky-100/70'
-                          : 'border-sky-300 bg-white hover:border-sky-500'
-                      }`}
-                    >
-                      <Upload className="w-6 h-6 text-sky-600 mx-auto mb-1.5" />
-                      <div className="text-xs font-bold text-slate-800">
-                        クリックまたはドラッグ＆ドロップで横断幕画像を読み込む
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        作成済みの横断幕デザイン画像を入れてサイズ感を確認したり、背景写真の上に文字を乗せることができます（PNG / JPG / WebP / SVG）
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-white p-3 rounded-xl border border-sky-200 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={bgImage.dataUrl}
-                          alt={bgImage.name}
-                          className="w-16 h-10 object-cover rounded border border-slate-200 bg-slate-100 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1 text-xs">
-                          <div className="font-bold text-slate-800 truncate">{bgImage.name}</div>
-                          <div className="text-[11px] text-slate-500">
-                            元サイズ: {bgImage.naturalWidth} × {bgImage.naturalHeight} px
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => bgImageInputRef.current?.click()}
-                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg shrink-0"
-                        >
-                          変更
-                        </button>
-                      </div>
-
-                      {/* 画像比率へのサイズ自動調整ボタン */}
-                      <div className="space-y-1.5 pt-1 border-t border-slate-100">
-                        <label className="block text-[11px] font-bold text-slate-600">
-                          画像の縦横比に横断幕サイズ(cm)を合わせる：
-                        </label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => fitBannerSizeToImageRatio('width')}
-                            className="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg py-1.5 px-2 text-[11px] font-bold transition"
-                          >
-                            横幅({bannerWidth}cm)基準で縦を自動調整
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => fitBannerSizeToImageRatio('height')}
-                            className="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg py-1.5 px-2 text-[11px] font-bold transition"
-                          >
-                            縦幅({bannerHeight}cm)基準で横を自動調整
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 既存の文字の表示/非表示切り替え（完成済み横断幕画像チェック用） */}
-                      <div className="flex items-center justify-between bg-amber-50/80 border border-amber-200 rounded-lg px-3 py-2">
-                        <span className="text-xs font-bold text-amber-950">
-                          画像の上にテキストを重ねて表示する
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={showTextsOnBanner}
-                          onChange={(e) => setShowTextsOnBanner(e.target.checked)}
-                          className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer"
-                        />
-                      </div>
-
-                      {/* フィッティングモード */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          画像のフィット方法：
-                        </label>
-                        <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                          {[
-                            { id: 'stretch', label: '枠いっぱいに伸縮' },
-                            { id: 'cover', label: '比率維持(切り抜き)' },
-                            { id: 'contain', label: '比率維持(全体表示)' },
-                          ].map((m) => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => setBgImage({ ...bgImage, fitMode: m.id })}
-                              className={`py-1.5 px-1 rounded border font-bold transition ${
-                                bgImage.fitMode === m.id
-                                  ? 'bg-sky-600 text-white border-sky-600'
-                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              {m.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 画像の不透明度＆明暗オーバーレイ調整 */}
-                      <div className="grid grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <div className="flex justify-between text-[11px] mb-1">
-                            <span className="font-bold text-slate-600">画像の濃さ</span>
-                            <span className="font-bold text-sky-700">{bgImage.opacity}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="10"
-                            max="100"
-                            step="5"
-                            value={bgImage.opacity}
-                            onChange={(e) =>
-                              setBgImage({ ...bgImage, opacity: Number(e.target.value) })
-                            }
-                            className="w-full accent-sky-600"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-[11px] mb-1">
-                            <span className="font-bold text-slate-600">背景の明暗補正</span>
-                            <span className="font-bold text-sky-700">
-                              {bgImage.darkOverlay > 0
-                                ? `暗く ${bgImage.darkOverlay}%`
-                                : bgImage.darkOverlay < 0
-                                ? `明るく ${Math.abs(bgImage.darkOverlay)}%`
-                                : '0%'}
-                            </span>
-                          </div>
-                          <input
-                            type="range"
-                            min="-70"
-                            max="70"
-                            step="5"
-                            value={bgImage.darkOverlay}
-                            onChange={(e) =>
-                              setBgImage({ ...bgImage, darkOverlay: Number(e.target.value) })
-                            }
-                            className="w-full accent-sky-600"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
@@ -4779,37 +4504,321 @@ export default function App() {
               </div>
             )}
 
-            {/* ==================== タブ5: サンプルテンプレート ==================== */}
+            {/* ==================== タブ5: テンプレート・画像取り込み ==================== */}
             {activeTab === 'template' && (
-              <div className="space-y-3">
-                <p className="text-xs text-slate-600">
-                  用途に合わせたデザインテンプレートをワンクリックで呼び出せます。呼び出した後に文言やサイズを自由に変更できます。
-                </p>
-                {TEMPLATES.map((tpl, i) => (
-                  <div
-                    key={i}
-                    className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 hover:border-sky-400 transition flex flex-col justify-between gap-2"
+              <div className="space-y-4">
+                {/* ★移設：AI画像OCR文字読み取り＆デザイン復元セクション */}
+                <div className="bg-gradient-to-br from-orange-50 via-amber-50/80 to-yellow-50/60 p-3.5 rounded-xl border-2 border-orange-300 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-orange-950 flex items-center gap-1.5">
+                      <ScanText className="w-4 h-4 text-orange-600" />
+                      📷 画像からOCR文字読み取り＆デザイン自動復元
+                    </h3>
+                    <span className="text-[10px] bg-orange-200 text-orange-900 px-2 py-0.5 rounded-full font-bold">
+                      AI OCR搭載
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-700 leading-relaxed">
+                    横断幕の写真やスクリーンショットをアップロードすると、AIが<strong>「書かれている文言・位置・文字色・背景色・縦書き/横書き」を自動で読み取り、後から文字を自由に書き換えられる状態</strong>に復元します。
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => ocrFileInputRef.current?.click()}
+                    disabled={isOcrLoading}
+                    className="w-full py-2.5 px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-60 text-slate-950 font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-2"
                   >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-slate-800">{tpl.name}</h4>
-                        <span className="text-xs font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                          {tpl.width} × {tpl.height} cm
+                    {isOcrLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        画像内の文字・配色・レイアウトをOCR解析中...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4" />
+                        横断幕の画像を選択してOCRで文字を読み取る
+                      </>
+                    )}
+                  </button>
+
+                  {ocrError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{ocrError}</span>
+                    </div>
+                  )}
+
+                  {/* OCR解析結果プレビュー＆反映モード切替 */}
+                  {ocrResult && (
+                    <div className="bg-white p-3 rounded-xl border border-orange-200 space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-xs font-bold text-slate-800">
+                          ✅ 読み取った文字レイヤー ({ocrResult.texts?.length || 0}件)
                         </span>
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-slate-500">検出背景色:</span>
+                          <span
+                            className="w-4 h-4 rounded border border-slate-300 inline-block"
+                            style={{ backgroundColor: ocrResult.bgColor1 }}
+                            title={ocrResult.bgColor1}
+                          />
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        収録テキスト: 「{tpl.texts.map((t) => t.text).join(' / ')}」
+
+                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                        {ocrResult.texts?.map((t, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] bg-orange-50 border border-orange-200 text-orange-950 px-2 py-0.5 rounded font-bold"
+                          >
+                            {t.text.replace(/\n/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => applyOcrResultToCanvas(ocrResult, 'reconstruct')}
+                          className="w-full py-1.5 px-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          テキスト＋背景色として完全復元（文字を自由に編集する）
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyOcrResultToCanvas(ocrResult, 'overlay')}
+                          className="w-full py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5"
+                        >
+                          <Layers className="w-3.5 h-3.5" />
+                          元画像を半透明で下に敷いて文字を重ねる（位置合わせ用）
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 横断幕画像（完成データ・背景写真）のそのまま読み込みセクション (Mode A) */}
+                <div className="bg-sky-50/70 p-3.5 rounded-xl border border-sky-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-sky-600" />
+                      横断幕画像の読み込み（完成画像・背景写真）
+                    </h3>
+                    {bgImage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBgImage(null);
+                          setShowTextsOnBanner(true);
+                          showToast('読み込んだ横断幕画像を解除しました');
+                        }}
+                        className="text-[11px] text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        画像を削除
+                      </button>
+                    )}
+                  </div>
+
+                  {!bgImage ? (
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsBgImageDragging(true);
+                      }}
+                      onDragLeave={() => setIsBgImageDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsBgImageDragging(false);
+                        handleUploadBannerBgImage(e.dataTransfer.files);
+                      }}
+                      onClick={() => bgImageInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${
+                        isBgImageDragging
+                          ? 'border-sky-500 bg-sky-100/70'
+                          : 'border-sky-300 bg-white hover:border-sky-500'
+                      }`}
+                    >
+                      <Upload className="w-6 h-6 text-sky-600 mx-auto mb-1.5" />
+                      <div className="text-xs font-bold text-slate-800">
+                        クリックまたはドラッグ＆ドロップで横断幕画像を読み込む
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        作成済みの横断幕デザイン画像を入れてサイズ感を確認したり、背景写真の上に文字を乗せることができます（PNG / JPG / WebP / SVG）
                       </p>
                     </div>
-                    <button
-                      onClick={() => applyTemplate(tpl)}
-                      className="w-full py-2 bg-white hover:bg-sky-600 hover:text-white text-sky-700 border border-sky-500 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      このデザインを読み込む
-                    </button>
+                  ) : (
+                    <div className="bg-white p-3 rounded-xl border border-sky-200 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={bgImage.dataUrl}
+                          alt={bgImage.name}
+                          className="w-16 h-10 object-cover rounded border border-slate-200 bg-slate-100 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1 text-xs">
+                          <div className="font-bold text-slate-800 truncate">{bgImage.name}</div>
+                          <div className="text-[11px] text-slate-500">
+                            元サイズ: {bgImage.naturalWidth} × {bgImage.naturalHeight} px
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => bgImageInputRef.current?.click()}
+                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg shrink-0"
+                        >
+                          変更
+                        </button>
+                      </div>
+
+                      {/* 画像比率へのサイズ自動調整ボタン */}
+                      <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                        <label className="block text-[11px] font-bold text-slate-600">
+                          画像の縦横比に横断幕サイズ(cm)を合わせる：
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => fitBannerSizeToImageRatio('width')}
+                            className="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg py-1.5 px-2 text-[11px] font-bold transition"
+                          >
+                            横幅({bannerWidth}cm)基準で縦を自動調整
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fitBannerSizeToImageRatio('height')}
+                            className="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-lg py-1.5 px-2 text-[11px] font-bold transition"
+                          >
+                            縦幅({bannerHeight}cm)基準で横を自動調整
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 既存の文字の表示/非表示切り替え（完成済み横断幕画像チェック用） */}
+                      <div className="flex items-center justify-between bg-amber-50/80 border border-amber-200 rounded-lg px-3 py-2">
+                        <span className="text-xs font-bold text-amber-950">
+                          画像の上にテキストを重ねて表示する
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={showTextsOnBanner}
+                          onChange={(e) => setShowTextsOnBanner(e.target.checked)}
+                          className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* フィッティングモード */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          画像のフィット方法：
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                          {[
+                            { id: 'stretch', label: '枠いっぱいに伸縮' },
+                            { id: 'cover', label: '比率維持(切り抜き)' },
+                            { id: 'contain', label: '比率維持(全体表示)' },
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setBgImage({ ...bgImage, fitMode: m.id })}
+                              className={`py-1.5 px-1 rounded border font-bold transition ${
+                                bgImage.fitMode === m.id
+                                  ? 'bg-sky-600 text-white border-sky-600'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 画像の不透明度＆明暗オーバーレイ調整 */}
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="font-bold text-slate-600">画像の濃さ</span>
+                            <span className="font-bold text-sky-700">{bgImage.opacity}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="10"
+                            max="100"
+                            step="5"
+                            value={bgImage.opacity}
+                            onChange={(e) =>
+                              setBgImage({ ...bgImage, opacity: Number(e.target.value) })
+                            }
+                            className="w-full accent-sky-600"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="font-bold text-slate-600">背景の明暗補正</span>
+                            <span className="font-bold text-sky-700">
+                              {bgImage.darkOverlay > 0
+                                ? `暗く ${bgImage.darkOverlay}%`
+                                : bgImage.darkOverlay < 0
+                                ? `明るく ${Math.abs(bgImage.darkOverlay)}%`
+                                : '0%'}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-70"
+                            max="70"
+                            step="5"
+                            value={bgImage.darkOverlay}
+                            onChange={(e) =>
+                              setBgImage({ ...bgImage, darkOverlay: Number(e.target.value) })
+                            }
+                            className="w-full accent-sky-600"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* サンプルテンプレート一覧 */}
+                <div className="space-y-3 pt-1 border-t border-slate-200">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                      デザインテンプレート
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      用途に合わせたデザインテンプレートをワンクリックで呼び出せます。呼び出した後に文言やサイズを自由に変更できます。
+                    </p>
                   </div>
-                ))}
+                  {TEMPLATES.map((tpl, i) => (
+                    <div
+                      key={i}
+                      className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 hover:border-sky-400 transition flex flex-col justify-between gap-2"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-slate-800">{tpl.name}</h4>
+                          <span className="text-xs font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                            {tpl.width} × {tpl.height} cm
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          収録テキスト: 「{tpl.texts.map((t) => t.text).join(' / ')}」
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => applyTemplate(tpl)}
+                        className="w-full py-2 bg-white hover:bg-sky-600 hover:text-white text-sky-700 border border-sky-500 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        このデザインを読み込む
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
