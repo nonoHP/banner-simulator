@@ -959,7 +959,7 @@ export default function App() {
     setImageLayers(snap.imageLayers);
     setTexts(snap.texts);
     setShowTextsOnBanner(snap.showTextsOnBanner);
-    if (snap.texts.length > 0 && !snap.texts.some((t) => t.id === selectedTextId)) {
+    if (selectedTextId && snap.texts.length > 0 && !snap.texts.some((t) => t.id === selectedTextId)) {
       setSelectedTextId(snap.texts[0].id);
       setSelectedTextIds([snap.texts[0].id]);
     }
@@ -1063,11 +1063,10 @@ export default function App() {
     draggingId,
   ]);
 
+  const handleEscapeDeselectRef = useRef(null);
+
   useEffect(() => {
     const onKeyDown = (e) => {
-      const isMod = (e.ctrlKey || e.metaKey) && !e.altKey;
-      if (!isMod) return;
-
       const active = document.activeElement;
       const isTextEditing =
         active &&
@@ -1076,6 +1075,17 @@ export default function App() {
             !['range', 'checkbox', 'radio', 'color', 'button', 'submit', 'file'].includes(
               active.type
             )));
+
+      if (e.key === 'Escape') {
+        const handled = handleEscapeDeselectRef.current?.();
+        if (handled && isTextEditing && active && typeof active.blur === 'function') {
+          active.blur();
+        }
+        return;
+      }
+
+      const isMod = (e.ctrlKey || e.metaKey) && !e.altKey;
+      if (!isMod) return;
       if (isTextEditing) return;
 
       const key = (e.key || '').toLowerCase();
@@ -1106,9 +1116,7 @@ export default function App() {
         ? filteredIds
         : selectedTextId && validSet.has(selectedTextId)
           ? [selectedTextId]
-          : texts[0]
-            ? [texts[0].id]
-            : [];
+          : [];
     if (targetIds.length === 0) return;
 
     let cancelled = false;
@@ -1426,14 +1434,35 @@ export default function App() {
     throw lastErr || new Error('AI APIの呼び出しに失敗しました。');
   };
 
-  // 現在選択中のテキストオブジェクト
-  const selectedText = texts.find((t) => t.id === selectedTextId) || texts[0] || null;
+  // 現在選択中のテキストオブジェクト（未選択時は null）
+  const selectedText = selectedTextId
+    ? texts.find((t) => t.id === selectedTextId) || null
+    : null;
   const effectiveSelectedTextIds = (() => {
     const validSet = new Set(texts.map((t) => t.id));
     const filtered = selectedTextIds.filter((id) => validSet.has(id));
     if (filtered.length > 0) return filtered;
     return selectedText ? [selectedText.id] : [];
   })();
+
+  const clearTextSelection = useCallback(() => {
+    setSelectedTextId(null);
+    setSelectedTextIds([]);
+  }, []);
+
+  handleEscapeDeselectRef.current = () => {
+    if (
+      isFontGalleryOpen ||
+      isShareOpen ||
+      isFavoritesOpen ||
+      ocrResult ||
+      editingFavoriteId
+    ) {
+      return false;
+    }
+    clearTextSelection();
+    return true;
+  };
 
   const selectSingleText = (id) => {
     setSelectedTextId(id);
@@ -1445,7 +1474,10 @@ export default function App() {
     setActiveLayerType('text');
     const cur = effectiveSelectedTextIds;
     if (cur.includes(id)) {
-      if (cur.length <= 1) return;
+      if (cur.length <= 1) {
+        clearTextSelection();
+        return;
+      }
       const next = cur.filter((x) => x !== id);
       setSelectedTextIds(next);
       if (selectedTextId === id) {
@@ -5246,6 +5278,14 @@ ${
                   )}
                 </div>
 
+                {/* 文字未選択時のガイド */}
+                {!selectedText && activeLayerType === 'text' && texts.length > 0 && (
+                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center text-xs text-slate-500 space-y-1">
+                    <p className="font-bold text-slate-700">文字は選択されていません</p>
+                    <p>上のリストまたは右のキャンバス上の文字をクリックすると編集できます（Escキーや余白クリックで解除）。</p>
+                  </div>
+                )}
+
                 {/* 選択中テキストの詳細編集 */}
                 {selectedText && (
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-4">
@@ -7769,7 +7809,19 @@ ${
         </aside>
 
         {/* 右側：メインプレビューキャンバス領域 */}
-        <main className="flex-1 bg-slate-200/70 p-3 sm:p-5 overflow-y-auto flex flex-col gap-4 lg:h-[calc(100vh-56px)]">
+        <main
+          onMouseDown={(e) => {
+            if (!e.target.closest('button, select, input, textarea, label, a')) {
+              clearTextSelection();
+            }
+          }}
+          onTouchStart={(e) => {
+            if (!e.target.closest('button, select, input, textarea, label, a')) {
+              clearTextSelection();
+            }
+          }}
+          className="flex-1 bg-slate-200/70 p-3 sm:p-5 overflow-y-auto flex flex-col gap-4 lg:h-[calc(100vh-56px)]"
+        >
           {/* 1. デザイン編集キャンバス */}
           {(viewMode === 'split' || viewMode === 'edit') && (
             <section
