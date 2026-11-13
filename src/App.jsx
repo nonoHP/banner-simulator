@@ -2168,26 +2168,25 @@ export default function App() {
 
   // --- 実寸サイズ比較シーン全体の描画計算 ---
   const renderScaleComparisonScene = () => {
-    const personSpanWidth = personCount === 1 ? 60 : (personCount - 1) * 68 + 60;
+    const safePersonCount = Math.max(2, personCount);
+    const s = personHeight / 170;
+    // 両脇の人の肩外縁がちょうど横断幕の両端付近に揃うようにオフセット配置
+    const edgeSpan = Math.max(0, bannerWidth - 40 * s);
+    // 幕幅が極端に狭い場合も人物同士が重なりすぎない最小間隔を確保
+    const minSpan = (safePersonCount - 1) * 44 * s;
+    const span = Math.max(edgeSpan, minSpan);
+
+    const personSpanWidth = span + 60 * s;
     const contentMaxWidth = Math.max(bannerWidth, personSpanWidth, 220);
-    const sceneWidth = contentMaxWidth + 140;
+    const sceneWidth = contentMaxWidth + 200;
     const maxVerticalElement = Math.max(personHeight + 50, bannerHeight + 90, 230);
     const sceneHeight = maxVerticalElement + 70;
     const groundY = sceneHeight - 38;
     const centerX = sceneWidth / 2;
 
     const peopleX = [];
-    if (personCount === 1) {
-      if (holdStyle === 'fence') {
-        peopleX.push(centerX - bannerWidth / 2 - 42);
-      } else {
-        peopleX.push(centerX);
-      }
-    } else {
-      const span = Math.min(Math.max(bannerWidth * 0.82, (personCount - 1) * 58), (personCount - 1) * 85);
-      for (let i = 0; i < personCount; i++) {
-        peopleX.push(centerX - span / 2 + (i * span) / (personCount - 1));
-      }
+    for (let i = 0; i < safePersonCount; i++) {
+      peopleX.push(centerX - span / 2 + (i * span) / (safePersonCount - 1));
     }
 
     let bannerTopY = groundY - bannerHeight;
@@ -2203,10 +2202,7 @@ export default function App() {
       bannerTopY = groundY - Math.max(bannerHeight + 25, 115);
     }
 
-    const bannerLeftX =
-      holdStyle === 'fence' && personCount === 1
-        ? centerX - bannerWidth / 2 + 25
-        : centerX - bannerWidth / 2;
+    const bannerLeftX = centerX - bannerWidth / 2;
 
     return (
       <svg
@@ -4266,8 +4262,8 @@ export default function App() {
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
                       並ぶ人数: <span className="text-sky-700">{personCount} 人</span>
                     </label>
-                    <div className="grid grid-cols-6 gap-1.5 text-xs">
-                      {[1, 2, 3, 4, 5, 6].map((num) => (
+                    <div className="grid grid-cols-5 gap-1.5 text-xs">
+                      {[2, 3, 4, 5, 6].map((num) => (
                         <button
                           key={num}
                           onClick={() => setPersonCount(num)}
@@ -4476,7 +4472,7 @@ export default function App() {
 
                   <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
                     <span className="text-slate-500 font-medium">人数:</span>
-                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                    {[2, 3, 4, 5, 6].map((n) => (
                       <button
                         key={n}
                         onClick={() => setPersonCount(n)}
