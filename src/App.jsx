@@ -553,6 +553,7 @@ export default function App() {
   const dragOffset = useRef({ dx: 0, dy: 0 });
   const svgEditRef = useRef(null);
   const svgScaleRef = useRef(null);
+  const embeddedFontCacheRef = useRef({ cssByUrl: new Map(), dataUriByUrl: new Map() });
 
   // 通知メッセージ用
   const [toastMsg, setToastMsg] = useState(null);
@@ -1728,10 +1729,167 @@ export default function App() {
     showToast(`テンプレート「${tpl.name}」を適用しました`);
   };
 
+  // --- PNG書き出し用 Webフォント埋め込みヘルパー ---
+  const isCodePointInUnicodeRange = (codePoint, rangeText) => {
+    if (!rangeText) return true;
+    const parts = rangeText.split(',');
+    for (const rawPart of parts) {
+      const part = rawPart.trim().toUpperCase();
+      if (!part.startsWith('U+')) continue;
+      const body = part.slice(2);
+      if (body.includes('-')) {
+        const [startHex, endHex] = body.split('-');
+        const start = parseInt(startHex, 16);
+        const end = parseInt(endHex, 16);
+        if (!Number.isNaN(start) && !Number.isNaN(end) && codePoint >= start && codePoint <= end) {
+          return true;
+        }
+      } else if (body.includes('?')) {
+        const start = parseInt(body.replace(/\?/g, '0'), 16);
+        const end = parseInt(body.replace(/\?/g, 'F'), 16);
+        if (!Number.isNaN(start) && !Number.isNaN(end) && codePoint >= start && codePoint <= end) {
+          return true;
+        }
+      } else {
+        const single = parseInt(body, 16);
+        if (!Number.isNaN(single) && codePoint === single) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const fetchUrlAsDataUri = async (url, cacheMap) => {
+    if (cacheMap.has(url)) return cacheMap.get(url);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Font fetch failed: ${resp.status}`);
+    const blob = await resp.blob();
+    const dataUri = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    cacheMap.set(url, dataUri);
+    return dataUri;
+  };
+
+  const collectGoogleFontRequestsFromSvg = (svgClone) => {
+    const customFamilies = new Set(customFontFacesCss.map((cf) => cf.familyName));
+    const genericFamilies = new Set([
+      '',
+      'sans-serif',
+      'serif',
+      'monospace',
+      'cursive',
+      'fantasy',
+      'system-ui',
+    ]);
+    const requestMap = new Map(); // googleFamily -> Set<number>
+
+    svgClone.querySelectorAll('text').forEach((textEl) => {
+      const rawFamily = textEl.getAttribute('font-family') || textEl.style?.fontFamily || '';
+      const primaryFamily = rawFamily.split(',')[0].replace(/['"]/g, '').trim();
+      if (genericFamilies.has(primaryFamily.toLowerCase()) || customFamilies.has(primaryFamily)) {
+        return;
+      }
+
+      const weightAttr = String(
+        textEl.getAttribute('font-weight') || textEl.style?.fontWeight || ''
+      ).trim();
+
+      const matchingCatalogItems = fontCatalog.filter((f) => {
+        const fPrimary = (f.family || '').split(',')[0].replace(/['"]/g, '').trim();
+        return fPrimary === primaryFamily && Boolean(f.googleFamily);
+      });
+      if (matchingCatalogItems.length === 0) return;
+
+      const exactWeightMatch = matchingCatalogItems.find(
+        (f) => String(f.weight || '400') === weightAttr
+      );
+      const targets = exactWeightMatch ? [exactWeightMatch] : matchingCatalogItems;
+
+      const content = textEl.textContent || '';
+      const codePoints = new Set([0x20]);
+      for (const ch of Array.from(content)) {
+        const cp = ch.codePointAt(0);
+        if (cp !== undefined) codePoints.add(cp);
+      }
+
+      targets.forEach((f) => {
+        if (!requestMap.has(f.googleFamily)) {
+          requestMap.set(f.googleFamily, new Set());
+        }
+        const cpSet = requestMap.get(f.googleFamily);
+        codePoints.forEach((cp) => cpSet.add(cp));
+      });
+    });
+
+    return requestMap;
+  };
+
+  const buildEmbeddedFontStyleCss = async (svgClone) => {
+    const requestMap = collectGoogleFontRequestsFromSvg(svgClone);
+    if (requestMap.size === 0) return '';
+
+    const { cssByUrl, dataUriByUrl } = embeddedFontCacheRef.current;
+    const embeddedBlocks = [];
+
+    for (const [googleFamily, codePoints] of requestMap.entries()) {
+      try {
+        const cssUrl = `https://fonts.googleapis.com/css2?family=${googleFamily}&display=swap`;
+        let cssText = cssByUrl.get(cssUrl);
+        if (!cssText) {
+          const resp = await fetch(cssUrl);
+          if (!resp.ok) continue;
+          cssText = await resp.text();
+          cssByUrl.set(cssUrl, cssText);
+        }
+
+        const faceMatches = Array.from(cssText.matchAll(/@font-face\s*\{([^}]*)\}/g));
+        const activeBlocks = faceMatches
+          .map((m) => m[0])
+          .filter((block) => {
+            const rangeMatch = block.match(/unicode-range:\s*([^;]+);/i);
+            if (!rangeMatch) return true;
+            const rangeText = rangeMatch[1];
+            for (const cp of codePoints) {
+              if (isCodePointInUnicodeRange(cp, rangeText)) return true;
+            }
+            return false;
+          });
+
+        const convertedBlocks = await Promise.all(
+          activeBlocks.map(async (block) => {
+            const urlMatch = block.match(/url\((['"]?)(https:\/\/[^'")]+)\1\)/);
+            if (!urlMatch) return block;
+            try {
+              const dataUri = await fetchUrlAsDataUri(urlMatch[2], dataUriByUrl);
+              return block.replace(urlMatch[0], `url("${dataUri}")`);
+            } catch {
+              return block;
+            }
+          })
+        );
+
+        embeddedBlocks.push(...convertedBlocks);
+      } catch (err) {
+        console.warn('Google Font embed skipped:', googleFamily, err);
+      }
+    }
+
+    return embeddedBlocks.join('\n');
+  };
+
   // --- PNG画像ダウンロード処理 ---
-  const downloadSvgAsPng = (svgElement, filename, exportWidthPx = 1600) => {
+  const downloadSvgAsPng = async (svgElement, filename, exportWidthPx = 1600) => {
     if (!svgElement) return;
     try {
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
       const clone = svgElement.cloneNode(true);
       const guides = clone.querySelectorAll('.editor-only-guide');
       guides.forEach((g) => g.remove());
@@ -1744,27 +1902,45 @@ export default function App() {
       clone.setAttribute('width', exportWidthPx);
       clone.setAttribute('height', exportHeightPx);
 
+      const embeddedFontCss = await buildEmbeddedFontStyleCss(clone);
+      if (embeddedFontCss) {
+        const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        styleEl.setAttribute('type', 'text/css');
+        styleEl.textContent = embeddedFontCss;
+        clone.insertBefore(styleEl, clone.firstChild);
+      }
+
       const svgData = new XMLSerializer().serializeToString(clone);
       const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(svgBlob);
 
       const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = exportWidthPx;
-        canvas.height = exportHeightPx;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, exportWidthPx, exportHeightPx);
-        URL.revokeObjectURL(url);
+      img.onload = async () => {
+        try {
+          if (img.decode) {
+            await img.decode().catch(() => {});
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = exportWidthPx;
+          canvas.height = exportHeightPx;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, exportWidthPx, exportHeightPx);
 
-        const pngUrl = canvas.toDataURL('image/png');
-        const downloadLink = document.createElement('a');
-        downloadLink.href = pngUrl;
-        downloadLink.download = filename;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-        showToast(`${filename} を保存しました`);
+          const pngUrl = canvas.toDataURL('image/png');
+          const downloadLink = document.createElement('a');
+          downloadLink.href = pngUrl;
+          downloadLink.download = filename;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          showToast(`${filename} を保存しました`);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        showToast('画像の書き出しに失敗しました');
       };
       img.src = url;
     } catch (err) {
