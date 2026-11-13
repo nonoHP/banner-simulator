@@ -717,7 +717,9 @@ export default function App() {
   // テキストレイヤー
   const [texts, setTexts] = useState(TEMPLATES[0].texts);
   const [selectedTextId, setSelectedTextId] = useState('t1');
-  const [selectedTextBBox, setSelectedTextBBox] = useState(null);
+  const [selectedTextIds, setSelectedTextIds] = useState(['t1']);
+  const [selectedTextBBoxMap, setSelectedTextBBoxMap] = useState({});
+  const dragMultiStartRef = useRef(null);
 
   // 表示モード: 'split' (上下並列), 'edit' (デザイン編集拡大), 'scale' (人物サイズ比較拡大)
   const [viewMode, setViewMode] = useState('split');
@@ -828,6 +830,7 @@ export default function App() {
     setShowTextsOnBanner(snap.showTextsOnBanner);
     if (snap.texts.length > 0 && !snap.texts.some((t) => t.id === selectedTextId)) {
       setSelectedTextId(snap.texts[0].id);
+      setSelectedTextIds([snap.texts[0].id]);
     }
     setTimeout(() => {
       historyRef.current.isApplying = false;
@@ -960,61 +963,77 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // 選択中文字のSVG実測バウンディングボックスを計測（アクティブ枠を文字ぴったりに表示するため）
+  // 選択中文字（複数対応）のSVG実測バウンディングボックスを計測（アクティブ枠を文字ぴったりに表示するため）
   useEffect(() => {
-    if (
-      activeLayerType !== 'text' ||
-      !selectedTextId ||
-      !showTextsOnBanner ||
-      viewMode === 'scale'
-    ) {
+    if (activeLayerType !== 'text' || !showTextsOnBanner || viewMode === 'scale') {
       return;
     }
+    const validSet = new Set(texts.map((t) => t.id));
+    const filteredIds = selectedTextIds.filter((id) => validSet.has(id));
+    const targetIds =
+      filteredIds.length > 0
+        ? filteredIds
+        : selectedTextId && validSet.has(selectedTextId)
+          ? [selectedTextId]
+          : texts[0]
+            ? [texts[0].id]
+            : [];
+    if (targetIds.length === 0) return;
+
     let cancelled = false;
-    const measureSelectedText = () => {
+    const measureSelectedTexts = () => {
       if (cancelled) return;
       const svgEl = svgEditRef.current;
       if (!svgEl) return;
-      const glyphEl = svgEl.querySelector(`[data-text-glyph="${selectedTextId}"]`);
-      if (!glyphEl || typeof glyphEl.getBBox !== 'function') return;
-      try {
-        const bb = glyphEl.getBBox();
-        if (
-          !Number.isFinite(bb.width) ||
-          bb.width <= 0 ||
-          !Number.isFinite(bb.height) ||
-          bb.height <= 0
-        ) {
-          return;
-        }
-        setSelectedTextBBox((prev) => {
+      const measuredEntries = {};
+      targetIds.forEach((tid) => {
+        const glyphEl = svgEl.querySelector(`[data-text-glyph="${tid}"]`);
+        if (!glyphEl || typeof glyphEl.getBBox !== 'function') return;
+        try {
+          const bb = glyphEl.getBBox();
           if (
-            prev &&
-            prev.id === selectedTextId &&
-            Math.abs(prev.x - bb.x) < 0.2 &&
-            Math.abs(prev.y - bb.y) < 0.2 &&
-            Math.abs(prev.width - bb.width) < 0.2 &&
-            Math.abs(prev.height - bb.height) < 0.2
+            Number.isFinite(bb.width) &&
+            bb.width > 0 &&
+            Number.isFinite(bb.height) &&
+            bb.height > 0
           ) {
-            return prev;
+            measuredEntries[tid] = {
+              x: bb.x,
+              y: bb.y,
+              width: bb.width,
+              height: bb.height,
+            };
           }
-          return {
-            id: selectedTextId,
-            x: bb.x,
-            y: bb.y,
-            width: bb.width,
-            height: bb.height,
-          };
-        });
-      } catch {
-        // ignore getBBox error when element is hidden
-      }
+        } catch {
+          // ignore getBBox error when element is hidden
+        }
+      });
+
+      if (Object.keys(measuredEntries).length === 0) return;
+      setSelectedTextBBoxMap((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [tid, box] of Object.entries(measuredEntries)) {
+          const p = prev[tid];
+          if (
+            !p ||
+            Math.abs(p.x - box.x) >= 0.2 ||
+            Math.abs(p.y - box.y) >= 0.2 ||
+            Math.abs(p.width - box.width) >= 0.2 ||
+            Math.abs(p.height - box.height) >= 0.2
+          ) {
+            next[tid] = box;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     };
 
-    const rafId = requestAnimationFrame(measureSelectedText);
+    const rafId = requestAnimationFrame(measureSelectedTexts);
     if (document.fonts?.ready) {
       document.fonts.ready.then(() => {
-        if (!cancelled) requestAnimationFrame(measureSelectedText);
+        if (!cancelled) requestAnimationFrame(measureSelectedTexts);
       });
     }
     return () => {
@@ -1024,6 +1043,7 @@ export default function App() {
   }, [
     activeLayerType,
     selectedTextId,
+    selectedTextIds,
     texts,
     fontCatalog,
     bannerWidth,
@@ -1137,7 +1157,9 @@ export default function App() {
     setShowTextsOnBanner(fav.showTextsOnBanner ?? true);
     const restoredTexts = (fav.texts || []).map((t) => ({ ...t }));
     setTexts(restoredTexts);
-    setSelectedTextId(restoredTexts[0]?.id || null);
+    const nextId = restoredTexts[0]?.id || null;
+    setSelectedTextId(nextId);
+    setSelectedTextIds(nextId ? [nextId] : []);
     setIsFavoritesOpen(false);
     showToast(`お気に入り「${fav.title}」を編集キャンバスに読み込みました`);
   };
@@ -1244,6 +1266,71 @@ export default function App() {
 
   // 現在選択中のテキストオブジェクト
   const selectedText = texts.find((t) => t.id === selectedTextId) || texts[0] || null;
+  const effectiveSelectedTextIds = (() => {
+    const validSet = new Set(texts.map((t) => t.id));
+    const filtered = selectedTextIds.filter((id) => validSet.has(id));
+    if (filtered.length > 0) return filtered;
+    return selectedText ? [selectedText.id] : [];
+  })();
+
+  const selectSingleText = (id) => {
+    setSelectedTextId(id);
+    setSelectedTextIds(id ? [id] : []);
+    setActiveLayerType('text');
+  };
+
+  const toggleMultiSelectText = (id) => {
+    setActiveLayerType('text');
+    const cur = effectiveSelectedTextIds;
+    if (cur.includes(id)) {
+      if (cur.length <= 1) return;
+      const next = cur.filter((x) => x !== id);
+      setSelectedTextIds(next);
+      if (selectedTextId === id) {
+        setSelectedTextId(next[0]);
+      }
+    } else {
+      setSelectedTextIds([...cur, id]);
+      setSelectedTextId(id);
+    }
+  };
+
+  const selectAllTexts = () => {
+    if (texts.length === 0) return;
+    setActiveLayerType('text');
+    setSelectedTextIds(texts.map((t) => t.id));
+    if (!selectedText || !texts.some((t) => t.id === selectedText.id)) {
+      setSelectedTextId(texts[0].id);
+    }
+  };
+
+  const clearMultiSelectTexts = () => {
+    const fallbackId = selectedText?.id || texts[0]?.id || null;
+    setSelectedTextIds(fallbackId ? [fallbackId] : []);
+    setSelectedTextId(fallbackId);
+  };
+
+  const alignSelectedTexts = (patch) => {
+    const targets = effectiveSelectedTextIds;
+    if (targets.length === 0) return;
+    setTexts((prev) => prev.map((t) => (targets.includes(t.id) ? { ...t, ...patch } : t)));
+  };
+
+  const nudgeSelectedTexts = (dx, dy) => {
+    const targets = effectiveSelectedTextIds;
+    if (targets.length === 0) return;
+    setTexts((prev) =>
+      prev.map((t) =>
+        targets.includes(t.id)
+          ? {
+              ...t,
+              x: Math.max(0, Math.min(100, Math.round((t.x + dx) * 10) / 10)),
+              y: Math.max(0, Math.min(100, Math.round((t.y + dy) * 10) / 10)),
+            }
+          : t
+      )
+    );
+  };
   // 現在選択中の画像レイヤーオブジェクト
   const selectedImageLayer =
     imageLayers.find((img) => img.id === selectedImageId) || imageLayers[0] || null;
@@ -1490,7 +1577,9 @@ export default function App() {
       });
 
       setTexts(reconstructedTexts);
-      setSelectedTextId(reconstructedTexts[0]?.id || null);
+      const nextId = reconstructedTexts[0]?.id || null;
+      setSelectedTextId(nextId);
+      setSelectedTextIds(nextId ? [nextId] : []);
     }
 
     setShowTextsOnBanner(true);
@@ -1979,6 +2068,7 @@ export default function App() {
     };
     setTexts((prev) => [...prev, newLayer]);
     setSelectedTextId(newId);
+    setSelectedTextIds([newId]);
     showToast('新しいテキストを追加しました');
   };
 
@@ -1993,6 +2083,7 @@ export default function App() {
     };
     setTexts((prev) => [...prev, copy]);
     setSelectedTextId(newId);
+    setSelectedTextIds([newId]);
     showToast('テキストを複製しました');
   };
 
@@ -2004,7 +2095,9 @@ export default function App() {
     }
     const remaining = texts.filter((t) => t.id !== selectedText.id);
     setTexts(remaining);
-    setSelectedTextId(remaining[remaining.length - 1]?.id || null);
+    const nextId = remaining[remaining.length - 1]?.id || null;
+    setSelectedTextId(nextId);
+    setSelectedTextIds(nextId ? [nextId] : []);
     showToast('テキストを削除しました');
   };
 
@@ -2265,10 +2358,34 @@ ${
 
   const handlePointerDownText = (e, item) => {
     e.stopPropagation();
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      toggleMultiSelectText(item.id);
+      return;
+    }
+    const isAlreadyInMulti =
+      activeLayerType === 'text' &&
+      effectiveSelectedTextIds.length > 1 &&
+      effectiveSelectedTextIds.includes(item.id);
     setSelectedTextId(item.id);
     setActiveLayerType('text');
+    if (!isAlreadyInMulti) {
+      setSelectedTextIds([item.id]);
+    }
     if (!svgEditRef.current) return;
     const coords = getSvgCoordinates(e, svgEditRef.current);
+    const dragTargets = isAlreadyInMulti ? effectiveSelectedTextIds : [item.id];
+    const itemsMap = {};
+    texts.forEach((t) => {
+      if (dragTargets.includes(t.id)) {
+        itemsMap[t.id] = { x: t.x, y: t.y };
+      }
+    });
+    dragMultiStartRef.current = {
+      pointerStart: coords,
+      items: itemsMap,
+      moved: false,
+      pendingSingleId: isAlreadyInMulti ? item.id : null,
+    };
     dragOffset.current = {
       dx: item.x - coords.x,
       dy: item.y - coords.y,
@@ -2295,15 +2412,29 @@ ${
     (e) => {
       if (!draggingId || !svgEditRef.current) return;
       const coords = getSvgCoordinates(e, svgEditRef.current);
-      const nextX = Math.max(0, Math.min(100, Math.round((coords.x + dragOffset.current.dx) * 10) / 10));
-      const nextY = Math.max(0, Math.min(100, Math.round((coords.y + dragOffset.current.dy) * 10) / 10));
       if (draggingType === 'image') {
+        const nextX = Math.max(0, Math.min(100, Math.round((coords.x + dragOffset.current.dx) * 10) / 10));
+        const nextY = Math.max(0, Math.min(100, Math.round((coords.y + dragOffset.current.dy) * 10) / 10));
         setImageLayers((prev) =>
           prev.map((img) => (img.id === draggingId ? { ...img, x: nextX, y: nextY } : img))
         );
-      } else {
+      } else if (dragMultiStartRef.current) {
+        const dx = coords.x - dragMultiStartRef.current.pointerStart.x;
+        const dy = coords.y - dragMultiStartRef.current.pointerStart.y;
+        if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25) {
+          dragMultiStartRef.current.moved = true;
+        }
+        const itemsMap = dragMultiStartRef.current.items;
         setTexts((prev) =>
-          prev.map((t) => (t.id === draggingId ? { ...t, x: nextX, y: nextY } : t))
+          prev.map((t) => {
+            const st = itemsMap[t.id];
+            if (!st) return t;
+            return {
+              ...t,
+              x: Math.max(0, Math.min(100, Math.round((st.x + dx) * 10) / 10)),
+              y: Math.max(0, Math.min(100, Math.round((st.y + dy) * 10) / 10)),
+            };
+          })
         );
       }
     },
@@ -2311,6 +2442,16 @@ ${
   );
 
   const handlePointerUp = useCallback(() => {
+    if (
+      dragMultiStartRef.current &&
+      !dragMultiStartRef.current.moved &&
+      dragMultiStartRef.current.pendingSingleId
+    ) {
+      const singleId = dragMultiStartRef.current.pendingSingleId;
+      setSelectedTextId(singleId);
+      setSelectedTextIds([singleId]);
+    }
+    dragMultiStartRef.current = null;
     setDraggingId(null);
   }, []);
 
@@ -2339,7 +2480,9 @@ ${
       id: 't_' + Math.random().toString(36).slice(2, 7),
     }));
     setTexts(newTexts);
-    setSelectedTextId(newTexts[0]?.id || null);
+    const nextId = newTexts[0]?.id || null;
+    setSelectedTextId(nextId);
+    setSelectedTextIds(nextId ? [nextId] : []);
     showToast(`テンプレート「${tpl.name}」を適用しました`);
   };
 
@@ -3208,7 +3351,9 @@ ${
               const posY = (item.y / 100) * h;
               const lines = item.text.split('\n');
               const isSelected =
-                isInteractive && activeLayerType === 'text' && selectedTextId === item.id;
+                isInteractive &&
+                activeLayerType === 'text' &&
+                effectiveSelectedTextIds.includes(item.id);
               const lineHeight = item.fontSize * 1.18;
               const activeEffects = getTextEffects(item);
               const hasShadow = activeEffects.includes('shadow');
@@ -3399,8 +3544,8 @@ ${
 
                     {isSelected && (() => {
                       const measured =
-                        selectedTextBBox?.id === item.id && selectedTextBBox.width > 0
-                          ? selectedTextBBox
+                        selectedTextBBoxMap[item.id]?.width > 0
+                          ? selectedTextBBoxMap[item.id]
                           : null;
                       const baseRect = measured
                         ? measured
@@ -4212,8 +4357,8 @@ ${
 
                 {/* テキストレイヤー一覧 */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                         テキストレイヤー ({texts.length})
                       </label>
@@ -4239,6 +4384,31 @@ ${
                           </>
                         )}
                       </button>
+                      {texts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={
+                            effectiveSelectedTextIds.length === texts.length
+                              ? clearMultiSelectTexts
+                              : selectAllTexts
+                          }
+                          className={`text-[10px] px-2 py-0.5 rounded-md font-bold border transition ${
+                            effectiveSelectedTextIds.length > 1
+                              ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-500'
+                              : 'bg-white text-sky-700 border-sky-300 hover:bg-sky-50'
+                          }`}
+                          title="チェックまたはShift+クリックで複数文字を選んで一括整列（上寄など）できます"
+                        >
+                          {effectiveSelectedTextIds.length === texts.length
+                            ? '複数選択を解除'
+                            : '全文字を選択'}
+                        </button>
+                      )}
+                      {effectiveSelectedTextIds.length > 1 && (
+                        <span className="text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-0.5 rounded-full">
+                          {effectiveSelectedTextIds.length}件選択中
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -4252,28 +4422,59 @@ ${
                       文字を追加
                     </button>
                   </div>
+                  {texts.length > 1 && (
+                    <p className="text-[10px] text-slate-500 mb-1.5">
+                      ※チェックボックス（またはShift+クリック）で複数選択し、下の「上寄・中央」等でまとめて整列できます
+                    </p>
+                  )}
 
                   <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                     {texts.map((item) => {
-                      const isSel =
+                      const isInMulti =
+                        activeLayerType === 'text' && effectiveSelectedTextIds.includes(item.id);
+                      const isPrimary =
                         activeLayerType === 'text' && selectedText?.id === item.id;
                       return (
                         <div
                           key={item.id}
-                          onClick={() => {
-                            setSelectedTextId(item.id);
-                            setActiveLayerType('text');
+                          onClick={(e) => {
+                            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                              toggleMultiSelectText(item.id);
+                            } else {
+                              selectSingleText(item.id);
+                            }
                           }}
                           className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm cursor-pointer transition ${
-                            isSel
-                              ? 'bg-sky-100/90 border-sky-600 ring-2 ring-sky-400/50 text-sky-950 font-bold shadow-sm'
+                            isInMulti
+                              ? isPrimary
+                                ? 'bg-sky-100/90 border-sky-600 ring-2 ring-sky-400/50 text-sky-950 font-bold shadow-sm'
+                                : 'bg-sky-50 border-sky-400 text-sky-900 font-bold shadow-xs'
                               : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           <div className="flex items-center gap-2 truncate min-w-0">
-                            {isSel && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-600 text-white font-bold shrink-0">
-                                選択中
+                            {texts.length > 1 && (
+                              <input
+                                type="checkbox"
+                                checked={isInMulti}
+                                onChange={() => toggleMultiSelectText(item.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-3.5 h-3.5 rounded accent-sky-600 cursor-pointer shrink-0"
+                                aria-label={`「${item.text.replace(/\n/g, ' ') || '空テキスト'}」を複数選択`}
+                                title="チェックで複数選択に追加/解除"
+                              />
+                            )}
+                            {isInMulti && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                                  isPrimary
+                                    ? 'bg-sky-600 text-white'
+                                    : 'bg-sky-200 text-sky-900'
+                                }`}
+                              >
+                                {isPrimary && effectiveSelectedTextIds.length > 1
+                                  ? '編集中'
+                                  : '選択中'}
                               </span>
                             )}
                             <span
@@ -5191,10 +5392,15 @@ ${
 
                     {/* 文字の位置指定 */}
                     <div className="space-y-2.5 pt-2 border-t border-slate-200">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                           <Move className="w-3.5 h-3.5 text-sky-600" />
-                          位置の整列・微調整
+                          <span>位置の整列・微調整</span>
+                          {effectiveSelectedTextIds.length > 1 && (
+                            <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-full font-bold">
+                              {effectiveSelectedTextIds.length}件まとめて一括適用
+                            </span>
+                          )}
                         </label>
                         <span className="text-[11px] text-slate-500">
                           ※キャンバス上でドラッグ移動も可能
@@ -5203,48 +5409,92 @@ ${
 
                       <div className="grid grid-cols-6 gap-1 bg-slate-200/70 p-1 rounded-lg">
                         <button
-                          onClick={() => updateSelectedText({ x: 20 })}
+                          type="button"
+                          onClick={() => alignSelectedTexts({ x: 20 })}
                           className="p-1.5 bg-white hover:bg-sky-50 rounded text-slate-700 flex flex-col items-center gap-0.5 text-[10px] font-medium shadow-sm"
                         >
                           <AlignLeft className="w-3.5 h-3.5" />
                           左寄
                         </button>
                         <button
-                          onClick={() => updateSelectedText({ x: 50 })}
+                          type="button"
+                          onClick={() => alignSelectedTexts({ x: 50 })}
                           className="p-1.5 bg-white hover:bg-sky-50 rounded text-slate-700 flex flex-col items-center gap-0.5 text-[10px] font-medium shadow-sm"
                         >
                           <AlignCenter className="w-3.5 h-3.5" />
                           中央
                         </button>
                         <button
-                          onClick={() => updateSelectedText({ x: 80 })}
+                          type="button"
+                          onClick={() => alignSelectedTexts({ x: 80 })}
                           className="p-1.5 bg-white hover:bg-sky-50 rounded text-slate-700 flex flex-col items-center gap-0.5 text-[10px] font-medium shadow-sm"
                         >
                           <AlignRight className="w-3.5 h-3.5" />
                           右寄
                         </button>
                         <button
-                          onClick={() => updateSelectedText({ y: 24 })}
+                          type="button"
+                          onClick={() => alignSelectedTexts({ y: 24 })}
                           className="p-1.5 bg-white hover:bg-sky-50 rounded text-slate-700 flex flex-col items-center gap-0.5 text-[10px] font-medium shadow-sm"
                         >
                           <AlignStartVertical className="w-3.5 h-3.5" />
                           上寄
                         </button>
                         <button
-                          onClick={() => updateSelectedText({ y: 50 })}
+                          type="button"
+                          onClick={() => alignSelectedTexts({ y: 50 })}
                           className="p-1.5 bg-white hover:bg-sky-50 rounded text-slate-700 flex flex-col items-center gap-0.5 text-[10px] font-medium shadow-sm"
                         >
                           <AlignCenterVertical className="w-3.5 h-3.5" />
                           中段
                         </button>
                         <button
-                          onClick={() => updateSelectedText({ y: 78 })}
+                          type="button"
+                          onClick={() => alignSelectedTexts({ y: 78 })}
                           className="p-1.5 bg-white hover:bg-sky-50 rounded text-slate-700 flex flex-col items-center gap-0.5 text-[10px] font-medium shadow-sm"
                         >
                           <AlignEndVertical className="w-3.5 h-3.5" />
                           下寄
                         </button>
                       </div>
+
+                      {effectiveSelectedTextIds.length > 1 && (
+                        <div className="bg-sky-50 border border-sky-200 rounded-lg p-2 space-y-1.5">
+                          <div className="text-[10px] font-bold text-sky-900">
+                            選択中の {effectiveSelectedTextIds.length} 件の位置関係を保ったまままとめて移動：
+                          </div>
+                          <div className="grid grid-cols-4 gap-1 text-[11px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => nudgeSelectedTexts(-2, 0)}
+                              className="py-1 px-2 bg-white hover:bg-sky-100 text-sky-800 border border-sky-200 rounded transition"
+                            >
+                              ← 左へ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => nudgeSelectedTexts(0, -2)}
+                              className="py-1 px-2 bg-white hover:bg-sky-100 text-sky-800 border border-sky-200 rounded transition"
+                            >
+                              ↑ 上へ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => nudgeSelectedTexts(0, 2)}
+                              className="py-1 px-2 bg-white hover:bg-sky-100 text-sky-800 border border-sky-200 rounded transition"
+                            >
+                              ↓ 下へ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => nudgeSelectedTexts(2, 0)}
+                              className="py-1 px-2 bg-white hover:bg-sky-100 text-sky-800 border border-sky-200 rounded transition"
+                            >
+                              → 右へ
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-3 pt-1">
                         <div>
@@ -5259,7 +5509,7 @@ ${
                             step="0.5"
                             value={selectedText.x}
                             onChange={(e) =>
-                              updateSelectedText({ x: Number(e.target.value) })
+                              alignSelectedTexts({ x: Number(e.target.value) })
                             }
                             className="w-full accent-sky-600"
                           />
@@ -5276,7 +5526,7 @@ ${
                             step="0.5"
                             value={selectedText.y}
                             onChange={(e) =>
-                              updateSelectedText({ y: Number(e.target.value) })
+                              alignSelectedTexts({ y: Number(e.target.value) })
                             }
                             className="w-full accent-sky-600"
                           />
