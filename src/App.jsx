@@ -346,6 +346,7 @@ const getEffectivePatternColor = (cfg, bgColors) => {
 };
 
 const AI_STYLE_CHIPS = [
+  '類語提示',
   '四字熟語風にかっこよく',
   '熱血・力強く',
   '韻を踏んでリズムよく',
@@ -1646,11 +1647,16 @@ export default function App() {
 - description: 読み方や言葉の意味、なぜこの表現が横断幕におすすめかの短い解説
 - recommendedFont: この文言に合うフォントタイプ（'brush'=毛筆・筆文字, 'sans'=角ゴシック, 'serif'=明朝体, 'pop'=極太ポップ, 'round'=丸ゴシック のいずれか）`;
 
+    const isSynonymMode = (aiStyleRequest || '').includes('類語');
     const userPrompt = `【伝えたい元の言葉・思い】: ${aiBaseText || '（おまかせ）'}
 【希望する表現・テイスト】: ${aiStyleRequest || '横断幕らしく迫力のある表現'}
 【競技・用途】: ${aiSport || '指定なし'}
 
-上記の条件にぴったりの横断幕スローガン・書き換え案を5つ作成してください。`;
+${
+  isSynonymMode
+    ? '※「類語提示」が指定されています。入力された元の言葉の意味や意図を保ったまま、ニュアンスや語感・表記（和語・熟語・四字熟語・英単語/カタカナ等）を変えた的確な類語・言い換え候補を5つ提案し、解説欄(description)には元の言葉とのニュアンスの違いを簡潔に記載してください。'
+    : '上記の条件にぴったりの横断幕スローガン・書き換え案を5つ作成してください。'
+}`;
 
     const payload = {
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
