@@ -537,6 +537,7 @@ export default function App() {
   const [customGoogleFontInput, setCustomGoogleFontInput] = useState('');
   const [isLoadingFont, setIsLoadingFont] = useState(false);
   const [isFontGalleryOpen, setIsFontGalleryOpen] = useState(false);
+  const [isFontApplyAll, setIsFontApplyAll] = useState(false);
   const fontFileInputRef = useRef(null);
 
   // 画像OCR文字読み取り＆デザイン復元用ステート
@@ -1193,10 +1194,16 @@ export default function App() {
       <div
         key={f.id}
         onClick={() => {
-          updateSelectedText({ fontId: f.id });
+          if (isFontApplyAll && texts.length > 1) {
+            applyFontToTexts(f.id);
+          } else {
+            updateSelectedText({ fontId: f.id });
+            if (isModal) {
+              showToast(`フォントを「${f.name}」に変更しました`);
+            }
+          }
           if (isModal) {
             setIsFontGalleryOpen(false);
-            showToast(`フォントを「${f.name}」に変更しました`);
           }
         }}
         className={`group flex items-center justify-between rounded-lg border cursor-pointer transition ${
@@ -1429,6 +1436,31 @@ export default function App() {
     setTexts((prev) =>
       prev.map((item) => (item.id === selectedText.id ? { ...item, ...updates } : item))
     );
+  };
+
+  const getFontDisplayName = (fontId) =>
+    fontCatalog.find((f) => f.id === fontId)?.name || '標準ゴシック';
+
+  const applyFontToTexts = (fontId, targetIds = null) => {
+    if (!fontId) return;
+    const fontName = getFontDisplayName(fontId);
+    if (targetIds === null) {
+      setTexts((prev) => prev.map((item) => ({ ...item, fontId })));
+      showToast(`すべての文字（${texts.length}件）に「${fontName}」を適用しました`);
+      return;
+    }
+    const idSet = new Set(Array.isArray(targetIds) ? targetIds : [targetIds]);
+    const targetItems = texts.filter((item) => idSet.has(item.id));
+    if (targetItems.length === 0) return;
+    setTexts((prev) =>
+      prev.map((item) => (idSet.has(item.id) ? { ...item, fontId } : item))
+    );
+    if (targetItems.length === 1) {
+      const label = targetItems[0].text.replace(/\n/g, ' ').slice(0, 14) || '文字';
+      showToast(`「${label}」に「${fontName}」を適用しました`);
+    } else {
+      showToast(`${targetItems.length}件の文字に「${fontName}」を適用しました`);
+    }
   };
 
   const addNewText = (customProps = {}) => {
@@ -2864,7 +2896,7 @@ export default function App() {
                               : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
-                          <div className="flex items-center gap-2 truncate">
+                          <div className="flex items-center gap-2 truncate min-w-0">
                             <span
                               className="w-3.5 h-3.5 rounded-full border border-slate-400 shrink-0"
                               style={{ backgroundColor: item.color }}
@@ -2872,8 +2904,34 @@ export default function App() {
                             <span className="truncate">
                               {item.text.replace(/\n/g, ' ') || '(空のテキスト)'}
                             </span>
+                            <span className="text-[10px] text-slate-400 font-normal truncate hidden sm:inline">
+                              [{getFontDisplayName(item.fontId)}]
+                            </span>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
+                            {texts.length > 1 &&
+                              activeLayerType === 'text' &&
+                              selectedText &&
+                              item.id !== selectedText.id &&
+                              (item.fontId === selectedText.fontId ? (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold flex items-center gap-0.5">
+                                  <Check className="w-2.5 h-2.5" />
+                                  同書体
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    applyFontToTexts(selectedText.fontId, item.id);
+                                  }}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-bold flex items-center gap-0.5 transition"
+                                  title={`「${getFontDisplayName(selectedText.fontId)}」をこの文字にも適用`}
+                                >
+                                  <Copy className="w-2.5 h-2.5" />
+                                  書体コピー
+                                </button>
+                              ))}
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
                               {item.isVertical ? '縦書' : '横書'}
                             </span>
@@ -3169,10 +3227,10 @@ export default function App() {
 
                     {/* 文字の向き ＆ 現在のフォント表示 */}
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <div className="text-xs">
+                      <div className="text-xs min-w-0 truncate">
                         <span className="text-slate-500 font-medium">適用中フォント: </span>
                         <span className="font-bold text-sky-800">
-                          {fontCatalog.find((f) => f.id === selectedText.fontId)?.name || '標準ゴシック'}
+                          {getFontDisplayName(selectedText.fontId)}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 bg-slate-200 p-0.5 rounded-lg text-xs font-bold shrink-0 w-32">
@@ -3199,6 +3257,77 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* 他の文字へ同じフォントをワンクリック適用 */}
+                    {texts.length > 1 && (() => {
+                      const currentFontName = getFontDisplayName(selectedText.fontId);
+                      const otherTexts = texts.filter((t) => t.id !== selectedText.id);
+                      const allMatched = otherTexts.every((t) => t.fontId === selectedText.fontId);
+                      return (
+                        <div className="bg-sky-50/80 border border-sky-200 rounded-xl p-2.5 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
+                              <Copy className="w-3 h-3 text-sky-600 shrink-0" />
+                              同じフォントを他の文字に適用
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => applyFontToTexts(selectedText.fontId)}
+                              disabled={allMatched}
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 transition shrink-0 ${
+                                allMatched
+                                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-default'
+                                  : 'bg-sky-600 hover:bg-sky-500 text-white shadow-xs'
+                              }`}
+                              title={`「${currentFontName}」をすべての文字に一括適用`}
+                            >
+                              {allMatched ? (
+                                <>
+                                  <Check className="w-3 h-3" />
+                                  全文字同書体
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  すべてに適用
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {otherTexts.map((other) => {
+                              const isSame = other.fontId === selectedText.fontId;
+                              const label = other.text.replace(/\n/g, ' ').trim() || '(空のテキスト)';
+                              return (
+                                <button
+                                  key={other.id}
+                                  type="button"
+                                  onClick={() => applyFontToTexts(selectedText.fontId, other.id)}
+                                  disabled={isSame}
+                                  className={`text-[11px] px-2 py-1 rounded-lg border font-bold flex items-center gap-1 max-w-[170px] transition ${
+                                    isSame
+                                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
+                                      : 'bg-white hover:bg-sky-100 border-sky-300 text-slate-700 hover:text-sky-900 shadow-2xs'
+                                  }`}
+                                  title={
+                                    isSame
+                                      ? `「${label}」は同じフォント（${currentFontName}）です`
+                                      : `「${label}」に「${currentFontName}」を適用`
+                                  }
+                                >
+                                  {isSame ? (
+                                    <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  ) : (
+                                    <Plus className="w-3 h-3 text-sky-600 shrink-0" />
+                                  )}
+                                  <span className="truncate">{label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* フォント検索・選択＆カスタムフォント追加セクション */}
                     <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5 shadow-sm">
                       <div className="flex items-center justify-between gap-1.5 flex-wrap">
@@ -3206,7 +3335,22 @@ export default function App() {
                           <Search className="w-3.5 h-3.5 text-sky-600" />
                           フォント ({filteredFonts.length}/{fontCatalog.length}種)
                         </label>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {texts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsFontApplyAll((v) => !v)}
+                              className={`text-[11px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 transition ${
+                                isFontApplyAll
+                                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                  : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                              }`}
+                              title="ONにすると一覧で選んだフォントをすべての文字へ一括適用します"
+                            >
+                              <Layers className="w-3 h-3" />
+                              全文字同時{isFontApplyAll ? 'ON' : ''}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setIsFontGalleryOpen(true)}
@@ -4661,24 +4805,69 @@ export default function App() {
             className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[96vw] max-h-[94vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 py-2 bg-slate-900 text-white flex items-center justify-between gap-3">
+            <div className="px-4 py-2 bg-slate-900 text-white flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <Grid className="w-4 h-4 text-sky-400 shrink-0" />
                 <h2 className="text-xs sm:text-sm font-bold truncate">
                   フォント一覧ギャラリー（全 {fontCatalog.length} 種 / 表示中 {filteredFonts.length} 種）
                 </h2>
                 <span className="text-[11px] text-slate-300 truncate hidden sm:inline">
-                  — クリックで選択中の文字「{selectedText.text.replace(/\n/g, ' ')}」に即適用
+                  {isFontApplyAll && texts.length > 1
+                    ? `— クリックですべての文字（${texts.length}件）に一括適用`
+                    : `— クリックで選択中の文字「${selectedText.text.replace(/\n/g, ' ')}」に即適用`}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFontGalleryOpen(false)}
-                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition shrink-0"
-                title="閉じる"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {texts.length > 1 && (
+                  <>
+                    <div className="flex items-center bg-slate-800 p-0.5 rounded-lg text-[11px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setIsFontApplyAll(false)}
+                        className={`px-2 py-1 rounded-md transition ${
+                          !isFontApplyAll
+                            ? 'bg-sky-600 text-white shadow'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        選択中のみ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsFontApplyAll(true)}
+                        className={`px-2 py-1 rounded-md transition ${
+                          isFontApplyAll
+                            ? 'bg-indigo-500 text-white shadow'
+                            : 'text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        全文字に適用
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyFontToTexts(selectedText.fontId);
+                        setIsFontGalleryOpen(false);
+                      }}
+                      className="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition"
+                      title={`現在選択中のフォント「${getFontDisplayName(selectedText.fontId)}」を全文字へコピー`}
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span className="hidden md:inline">現在のフォントを全文字へ</span>
+                      <span className="md:hidden">全文字へ統一</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsFontGalleryOpen(false)}
+                  className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition shrink-0"
+                  title="閉じる"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/70">
