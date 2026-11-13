@@ -133,6 +133,66 @@ const AI_SPORT_CHIPS = [
 
 const TEMPLATES = [
   {
+    name: 'Lefty sniper AKIRA（白地×黒・赤）',
+    width: 340,
+    height: 60,
+    bg: {
+      type: 'solid',
+      color1: '#ffffff',
+      color2: '#f8fafc',
+      gradientDir: 'horizontal',
+      pattern: 'none',
+      borderStyle: 'none',
+      borderColor: '#000000',
+      borderWidth: 2,
+      grommets: false,
+    },
+    texts: [
+      {
+        id: 't1',
+        text: 'Lefty sniper',
+        x: 33,
+        y: 38,
+        fontSize: 38,
+        fontId: 'anton',
+        color: '#171717',
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        shadow: false,
+        isVertical: false,
+        letterSpacing: 1,
+      },
+      {
+        id: 't2',
+        text: 'AKIRA',
+        x: 82,
+        y: 38,
+        fontSize: 38,
+        fontId: 'anton',
+        color: '#e62a1a',
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        shadow: false,
+        isVertical: false,
+        letterSpacing: 1,
+      },
+      {
+        id: 't3',
+        text: 'TOKYO-MACH',
+        x: 45,
+        y: 83,
+        fontSize: 13,
+        fontId: 'anton',
+        color: '#171717',
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        shadow: false,
+        isVertical: false,
+        letterSpacing: 1,
+      },
+    ]
+  },
+  {
     name: '王道スポーツ応援（赤×白・黒）',
     width: 240,
     height: 90,
@@ -289,8 +349,8 @@ const TEMPLATES = [
 export default function App() {
   // --- ステート定義 ---
   // 横断幕サイズ (cm)
-  const [bannerWidth, setBannerWidth] = useState(240);
-  const [bannerHeight, setBannerHeight] = useState(90);
+  const [bannerWidth, setBannerWidth] = useState(TEMPLATES[0].width);
+  const [bannerHeight, setBannerHeight] = useState(TEMPLATES[0].height);
 
   // 背景・枠デザイン
   const [bgConfig, setBgConfig] = useState(TEMPLATES[0].bg);
@@ -311,7 +371,7 @@ export default function App() {
 
   // テキストレイヤー
   const [texts, setTexts] = useState(TEMPLATES[0].texts);
-  const [selectedTextId, setSelectedTextId] = useState('t2');
+  const [selectedTextId, setSelectedTextId] = useState('t1');
 
   // 表示モード: 'split' (上下並列), 'edit' (デザイン編集拡大), 'scale' (人物サイズ比較拡大)
   const [viewMode, setViewMode] = useState('split');
