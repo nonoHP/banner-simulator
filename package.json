@@ -1,0 +1,23 @@
+{
+  "name": "banner-simulator",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "横断幕デザイン＆実寸サイズ感シミュレーター（AIスローガン提案・画像OCR復元機能付き）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^1.72.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.8"
+  }
+}
