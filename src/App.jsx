@@ -241,6 +241,66 @@ const COLOR_SWATCHES = [
   '#f8fafc', '#334155', '#991b1b', '#fef08a', '#bbf7d0'
 ];
 
+const BG_TYPE_OPTIONS = [
+  { id: 'solid', label: '単色' },
+  { id: 'gradient', label: 'グラデ' },
+  { id: 'split_lr', label: '左右分け' },
+  { id: 'split_tb', label: '上下分け' },
+  { id: 'split_diag', label: '斜め分け' },
+  { id: 'stripe_v', label: '縦しましま' },
+  { id: 'stripe_h', label: '横しましま' },
+  { id: 'stripe_diag', label: '斜めしましま' },
+];
+
+const BG_PATTERN_OPTIONS = [
+  { id: 'none', label: '模様なし (シンプル)' },
+  { id: 'slashes', label: 'スピード斜線' },
+  { id: 'checkered', label: '市松模様 (チェッカー)' },
+  { id: 'spotlight', label: '中央ハイライト' },
+  { id: 'vignette', label: '周辺引き締め (ビネット)' },
+  { id: 'dots', label: '水玉・ドット' },
+  { id: 'grid', label: '方眼グリッド' },
+  { id: 'diagonal_grid', label: '斜めクロス格子' },
+  { id: 'carbon', label: 'カーボンメッシュ風' },
+  { id: 'diamonds', label: 'ダイヤ格子' },
+  { id: 'chevron', label: 'V字山型 (シェブロン)' },
+  { id: 'sunburst', label: '集中線・サンバースト' },
+];
+
+const BG_MULTI_PALETTES = [
+  { name: '赤×黒', colors: ['#dc2626', '#111827'] },
+  { name: '紅白', colors: ['#dc2626', '#ffffff'] },
+  { name: '紺×金', colors: ['#1e3a8a', '#facc15'] },
+  { name: '黒×金', colors: ['#111827', '#f59e0b'] },
+  { name: '青×白×赤', colors: ['#1d4ed8', '#ffffff', '#dc2626'] },
+  { name: '緑×黄×白', colors: ['#15803d', '#facc15', '#ffffff'] },
+  { name: '黄×黒', colors: ['#facc15', '#171717'] },
+  { name: '紫×白', colors: ['#6b21a8', '#ffffff'] },
+];
+
+const getBgColorsFromConfig = (cfg) => {
+  if (Array.isArray(cfg?.colors) && cfg.colors.length >= 2) {
+    return cfg.colors;
+  }
+  const c1 = cfg?.color1 || '#ffffff';
+  const c2 = cfg?.color2 || '#1e3a8a';
+  return [c1, c2];
+};
+
+const isHexLightColor = (hex) => {
+  if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 175;
+};
+
+const getEffectivePatternColor = (cfg, bgColors) => {
+  if (cfg?.patternTone === 'light') return '#ffffff';
+  if (cfg?.patternTone === 'dark') return '#000000';
+  return isHexLightColor(bgColors[0]) ? '#000000' : '#ffffff';
+};
+
 const AI_STYLE_CHIPS = [
   '四字熟語風にかっこよく',
   '熱血・力強く',
@@ -1983,6 +2043,16 @@ export default function App() {
 
     const grommets = curBgConfig.grommets ? getGrommetPositions(w, h) : [];
     const bw = curBgConfig.borderWidth;
+    const bgColors = getBgColorsFromConfig(curBgConfig);
+    const patternColor = getEffectivePatternColor(curBgConfig, bgColors);
+    const patternAlphaMul = curBgConfig.patternStrength ?? 1;
+    const patAlpha = (base) => Math.min(0.85, base * patternAlphaMul);
+    const stripeDensity = Math.max(2, curBgConfig.stripeDensity ?? 6);
+    const stripeUnitW = w / stripeDensity;
+    const stripeUnitH = h / stripeDensity;
+    const stripeUnitD = Math.max(8, Math.min(w, h) * (3.2 / stripeDensity));
+    const diagSkew = Math.min(w * 0.14, h * 0.65);
+    const patBase = Math.max(8, Math.min(w, h) * 0.22);
 
     const getPreserveAspectRatio = (fitMode) => {
       if (fitMode === 'contain') return 'xMidYMid meet';
@@ -2060,9 +2130,88 @@ export default function App() {
             x2={curBgConfig.gradientDir === 'vertical' ? '0%' : '100%'}
             y2={curBgConfig.gradientDir === 'horizontal' ? '0%' : '100%'}
           >
-            <stop offset="0%" stopColor={curBgConfig.color1} />
-            <stop offset="100%" stopColor={curBgConfig.color2} />
+            {bgColors.map((c, idx) => (
+              <stop
+                key={idx}
+                offset={`${(idx / Math.max(1, bgColors.length - 1)) * 100}%`}
+                stopColor={c}
+              />
+            ))}
           </linearGradient>
+
+          <radialGradient id={`${idPrefix}-bg-grad-radial`} cx="50%" cy="50%" r="65%">
+            {bgColors.map((c, idx) => (
+              <stop
+                key={idx}
+                offset={`${(idx / Math.max(1, bgColors.length - 1)) * 100}%`}
+                stopColor={c}
+              />
+            ))}
+          </radialGradient>
+
+          <pattern
+            id={`${idPrefix}-bg-stripe-v`}
+            width={stripeUnitW}
+            height={h}
+            patternUnits="userSpaceOnUse"
+          >
+            {bgColors.map((c, idx) => {
+              const bandW = stripeUnitW / bgColors.length;
+              return (
+                <rect
+                  key={idx}
+                  x={bandW * idx}
+                  y="0"
+                  width={bandW + 0.1}
+                  height={h}
+                  fill={c}
+                />
+              );
+            })}
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-bg-stripe-h`}
+            width={w}
+            height={stripeUnitH}
+            patternUnits="userSpaceOnUse"
+          >
+            {bgColors.map((c, idx) => {
+              const bandH = stripeUnitH / bgColors.length;
+              return (
+                <rect
+                  key={idx}
+                  x="0"
+                  y={bandH * idx}
+                  width={w}
+                  height={bandH + 0.1}
+                  fill={c}
+                />
+              );
+            })}
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-bg-stripe-diag`}
+            width={stripeUnitD}
+            height={stripeUnitD}
+            patternTransform="rotate(35 0 0)"
+            patternUnits="userSpaceOnUse"
+          >
+            {bgColors.map((c, idx) => {
+              const bandD = stripeUnitD / bgColors.length;
+              return (
+                <rect
+                  key={idx}
+                  x={bandD * idx}
+                  y="0"
+                  width={bandD + 0.1}
+                  height={stripeUnitD}
+                  fill={c}
+                />
+              );
+            })}
+          </pattern>
 
           <filter id={`${idPrefix}-drop-shadow`} x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow
@@ -2076,34 +2225,115 @@ export default function App() {
 
           <pattern
             id={`${idPrefix}-pattern-slashes`}
-            width={w * 0.08}
-            height={w * 0.08}
+            width={patBase * 0.8}
+            height={patBase * 0.8}
             patternTransform="rotate(35 0 0)"
             patternUnits="userSpaceOnUse"
           >
-            <rect width={w * 0.035} height={w * 0.08} fill="#ffffff" fillOpacity="0.06" />
+            <rect width={patBase * 0.34} height={patBase * 0.8} fill={patternColor} fillOpacity={patAlpha(0.09)} />
           </pattern>
 
           <pattern
             id={`${idPrefix}-pattern-checkered`}
-            width={h * 0.25}
-            height={h * 0.25}
+            width={patBase * 1.1}
+            height={patBase * 1.1}
             patternUnits="userSpaceOnUse"
           >
-            <rect width={h * 0.125} height={h * 0.125} fill="#ffffff" fillOpacity="0.07" />
+            <rect width={patBase * 0.55} height={patBase * 0.55} fill={patternColor} fillOpacity={patAlpha(0.09)} />
             <rect
-              x={h * 0.125}
-              y={h * 0.125}
-              width={h * 0.125}
-              height={h * 0.125}
-              fill="#ffffff"
-              fillOpacity="0.07"
+              x={patBase * 0.55}
+              y={patBase * 0.55}
+              width={patBase * 0.55}
+              height={patBase * 0.55}
+              fill={patternColor}
+              fillOpacity={patAlpha(0.09)}
+            />
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-pattern-dots`}
+            width={patBase * 0.9}
+            height={patBase * 0.9}
+            patternUnits="userSpaceOnUse"
+          >
+            <circle cx={patBase * 0.225} cy={patBase * 0.225} r={patBase * 0.13} fill={patternColor} fillOpacity={patAlpha(0.12)} />
+            <circle cx={patBase * 0.675} cy={patBase * 0.675} r={patBase * 0.13} fill={patternColor} fillOpacity={patAlpha(0.12)} />
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-pattern-grid`}
+            width={patBase * 0.85}
+            height={patBase * 0.85}
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d={`M ${patBase * 0.85} 0 L 0 0 0 ${patBase * 0.85}`}
+              fill="none"
+              stroke={patternColor}
+              strokeOpacity={patAlpha(0.12)}
+              strokeWidth={Math.max(0.4, patBase * 0.05)}
+            />
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-pattern-diagonal-grid`}
+            width={patBase}
+            height={patBase}
+            patternUnits="userSpaceOnUse"
+          >
+            <line x1="0" y1="0" x2={patBase} y2={patBase} stroke={patternColor} strokeOpacity={patAlpha(0.11)} strokeWidth={Math.max(0.4, patBase * 0.05)} />
+            <line x1={patBase} y1="0" x2="0" y2={patBase} stroke={patternColor} strokeOpacity={patAlpha(0.11)} strokeWidth={Math.max(0.4, patBase * 0.05)} />
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-pattern-carbon`}
+            width={patBase * 0.48}
+            height={patBase * 0.48}
+            patternUnits="userSpaceOnUse"
+          >
+            <rect x="0" y="0" width={patBase * 0.24} height={patBase * 0.24} fill={patternColor} fillOpacity={patAlpha(0.08)} />
+            <rect x={patBase * 0.24} y={patBase * 0.24} width={patBase * 0.24} height={patBase * 0.24} fill={patternColor} fillOpacity={patAlpha(0.08)} />
+            <line x1="0" y1={patBase * 0.24} x2={patBase * 0.24} y2="0" stroke={patternColor} strokeOpacity={patAlpha(0.09)} strokeWidth={Math.max(0.3, patBase * 0.04)} />
+            <line x1={patBase * 0.24} y1={patBase * 0.48} x2={patBase * 0.48} y2={patBase * 0.24} stroke={patternColor} strokeOpacity={patAlpha(0.09)} strokeWidth={Math.max(0.3, patBase * 0.04)} />
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-pattern-diamonds`}
+            width={patBase}
+            height={patBase}
+            patternUnits="userSpaceOnUse"
+          >
+            <polygon
+              points={`${patBase / 2},0 ${patBase},${patBase / 2} ${patBase / 2},${patBase} 0,${patBase / 2}`}
+              fill={patternColor}
+              fillOpacity={patAlpha(0.09)}
+            />
+          </pattern>
+
+          <pattern
+            id={`${idPrefix}-pattern-chevron`}
+            width={patBase}
+            height={patBase * 0.8}
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d={`M 0 ${patBase * 0.55} L ${patBase / 2} ${patBase * 0.15} L ${patBase} ${patBase * 0.55}`}
+              fill="none"
+              stroke={patternColor}
+              strokeOpacity={patAlpha(0.12)}
+              strokeWidth={Math.max(0.6, patBase * 0.16)}
+              strokeLinecap="square"
             />
           </pattern>
 
           <radialGradient id={`${idPrefix}-pattern-radial`} cx="50%" cy="50%" r="60%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.12" />
+            <stop offset="0%" stopColor="#ffffff" stopOpacity={patAlpha(0.24)} />
+            <stop offset="100%" stopColor="#000000" stopOpacity={patAlpha(0.14)} />
+          </radialGradient>
+
+          <radialGradient id={`${idPrefix}-pattern-vignette`} cx="50%" cy="50%" r="68%">
+            <stop offset="55%" stopColor="#000000" stopOpacity="0" />
+            <stop offset="100%" stopColor="#000000" stopOpacity={patAlpha(0.35)} />
           </radialGradient>
 
           <clipPath id={`${idPrefix}-banner-clip`}>
@@ -2112,16 +2342,78 @@ export default function App() {
         </defs>
 
         <g clipPath={`url(#${idPrefix}-banner-clip)`}>
-          {/* 1. ベース背景 */}
-          <rect
-            x="0"
-            y="0"
-            width={w}
-            height={h}
-            fill={curBgConfig.type === 'gradient' ? `url(#${idPrefix}-bg-grad)` : curBgConfig.color1}
-          />
+          {/* 1. ベース背景（単色 / 多色グラデ / ツートン・多色分割 / しましま） */}
+          {curBgConfig.type === 'gradient' ? (
+            <rect
+              x="0"
+              y="0"
+              width={w}
+              height={h}
+              fill={
+                curBgConfig.gradientDir === 'radial'
+                  ? `url(#${idPrefix}-bg-grad-radial)`
+                  : `url(#${idPrefix}-bg-grad)`
+              }
+            />
+          ) : curBgConfig.type === 'split_lr' ? (
+            <g>
+              {bgColors.map((c, idx) => {
+                const segW = w / bgColors.length;
+                return (
+                  <rect
+                    key={idx}
+                    x={segW * idx}
+                    y="0"
+                    width={segW + 0.25}
+                    height={h}
+                    fill={c}
+                  />
+                );
+              })}
+            </g>
+          ) : curBgConfig.type === 'split_tb' ? (
+            <g>
+              {bgColors.map((c, idx) => {
+                const segH = h / bgColors.length;
+                return (
+                  <rect
+                    key={idx}
+                    x="0"
+                    y={segH * idx}
+                    width={w}
+                    height={segH + 0.25}
+                    fill={c}
+                  />
+                );
+              })}
+            </g>
+          ) : curBgConfig.type === 'split_diag' ? (
+            <g>
+              <rect x="0" y="0" width={w} height={h} fill={bgColors[0]} />
+              {bgColors.slice(1).map((c, idx) => {
+                const divX = w * ((idx + 1) / bgColors.length);
+                const topX = divX + diagSkew / 2;
+                const botX = divX - diagSkew / 2;
+                return (
+                  <polygon
+                    key={idx}
+                    points={`${topX},0 ${w},0 ${w},${h} ${botX},${h}`}
+                    fill={c}
+                  />
+                );
+              })}
+            </g>
+          ) : curBgConfig.type === 'stripe_v' ? (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-bg-stripe-v)`} />
+          ) : curBgConfig.type === 'stripe_h' ? (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-bg-stripe-h)`} />
+          ) : curBgConfig.type === 'stripe_diag' ? (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-bg-stripe-diag)`} />
+          ) : (
+            <rect x="0" y="0" width={w} height={h} fill={curBgConfig.color1} />
+          )}
 
-          {/* 2. 背景パターン */}
+          {/* 2. 背景パターン模様 */}
           {curBgConfig.pattern === 'slashes' && (
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-slashes)`} />
           )}
@@ -2130,6 +2422,51 @@ export default function App() {
           )}
           {curBgConfig.pattern === 'spotlight' && (
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-radial)`} />
+          )}
+          {curBgConfig.pattern === 'vignette' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-vignette)`} />
+          )}
+          {curBgConfig.pattern === 'dots' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-dots)`} />
+          )}
+          {curBgConfig.pattern === 'grid' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-grid)`} />
+          )}
+          {curBgConfig.pattern === 'diagonal_grid' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-diagonal-grid)`} />
+          )}
+          {curBgConfig.pattern === 'carbon' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-carbon)`} />
+          )}
+          {curBgConfig.pattern === 'diamonds' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-diamonds)`} />
+          )}
+          {curBgConfig.pattern === 'chevron' && (
+            <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-chevron)`} />
+          )}
+          {curBgConfig.pattern === 'sunburst' && (
+            <g>
+              {Array.from({ length: 16 }).map((_, idx) => {
+                const rays = 32;
+                const a1 = ((idx * 2) / rays) * Math.PI * 2;
+                const a2 = ((idx * 2 + 1) / rays) * Math.PI * 2;
+                const cx = w / 2;
+                const cy = h / 2;
+                const radius = Math.hypot(w, h);
+                const x1 = cx + Math.cos(a1) * radius;
+                const y1 = cy + Math.sin(a1) * radius;
+                const x2 = cx + Math.cos(a2) * radius;
+                const y2 = cy + Math.sin(a2) * radius;
+                return (
+                  <polygon
+                    key={idx}
+                    points={`${cx},${cy} ${x1},${y1} ${x2},${y2}`}
+                    fill={patternColor}
+                    fillOpacity={patAlpha(0.11)}
+                  />
+                );
+              })}
+            </g>
           )}
 
           {/* 2.5 読み込んだ横断幕全体画像 / 背景画像 (Mode A) */}
@@ -4061,136 +4398,355 @@ export default function App() {
             {activeTab === 'size_bg' && (
               <div className="space-y-5">
                 {/* 背景・枠デザイン設定 */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-4">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-sky-600" />
-                    背景カラー・枠デザイン設定
-                  </h3>
+                {(() => {
+                  const curBgColors = getBgColorsFromConfig(bgConfig);
+                  const updateBgColors = (nextColors) =>
+                    setBgConfig((prev) => ({
+                      ...prev,
+                      colors: nextColors,
+                      color1: nextColors[0] || prev.color1,
+                      color2: nextColors[1] || nextColors[0] || prev.color2,
+                    }));
+                  const handleSelectBgType = (nextType) => {
+                    if (
+                      nextType !== 'solid' &&
+                      (!Array.isArray(bgConfig.colors) || bgConfig.colors.length < 2)
+                    ) {
+                      const c1 = bgConfig.color1 || '#ffffff';
+                      const c2 = bgConfig.color2 || '#1e3a8a';
+                      const nearLightPair = isHexLightColor(c1) && isHexLightColor(c2);
+                      const initColors = [
+                        c1,
+                        c1.toLowerCase() === c2.toLowerCase() || nearLightPair
+                          ? isHexLightColor(c1)
+                            ? '#1e3a8a'
+                            : '#ffffff'
+                          : c2,
+                      ];
+                      setBgConfig({
+                        ...bgConfig,
+                        type: nextType,
+                        colors: initColors,
+                        color1: initColors[0],
+                        color2: initColors[1],
+                      });
+                      return;
+                    }
+                    setBgConfig({ ...bgConfig, type: nextType });
+                  };
 
-                  <div className="grid grid-cols-2 gap-2 bg-slate-200 p-1 rounded-lg text-xs font-bold">
-                    <button
-                      onClick={() => setBgConfig({ ...bgConfig, type: 'solid' })}
-                      className={`py-1.5 rounded-md transition ${
-                        bgConfig.type === 'solid'
-                          ? 'bg-white text-sky-700 shadow-sm'
-                          : 'text-slate-600'
-                      }`}
-                    >
-                      単色塗りつぶし
-                    </button>
-                    <button
-                      onClick={() => setBgConfig({ ...bgConfig, type: 'gradient' })}
-                      className={`py-1.5 rounded-md transition ${
-                        bgConfig.type === 'gradient'
-                          ? 'bg-white text-sky-700 shadow-sm'
-                          : 'text-slate-600'
-                      }`}
-                    >
-                      グラデーション
-                    </button>
-                  </div>
+                  return (
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-4">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                        <Palette className="w-3.5 h-3.5 text-sky-600" />
+                        背景カラー・パターン・枠デザイン設定
+                      </h3>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      {bgConfig.type === 'gradient' ? 'グラデーション開始色' : '背景カラー'}
-                    </label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <input
-                        type="color"
-                        value={bgConfig.color1}
-                        onChange={(e) => setBgConfig({ ...bgConfig, color1: e.target.value })}
-                        className="w-8 h-8 rounded cursor-pointer border border-slate-300"
-                      />
-                      {COLOR_SWATCHES.map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => setBgConfig({ ...bgConfig, color1: c })}
-                          className={`w-6 h-6 rounded-full border transition ${
-                            bgConfig.color1.toLowerCase() === c
-                              ? 'ring-2 ring-sky-500 scale-110'
-                              : 'border-slate-300'
-                          }`}
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {bgConfig.type === 'gradient' && (
-                    <div className="space-y-3 pt-2 border-t border-slate-200">
+                      {/* 1. 背景の塗り方・複数色スタイル */}
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          グラデーション終了色
+                          背景の色分け・塗り方
                         </label>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <input
-                            type="color"
-                            value={bgConfig.color2}
-                            onChange={(e) => setBgConfig({ ...bgConfig, color2: e.target.value })}
-                            className="w-8 h-8 rounded cursor-pointer border border-slate-300"
-                          />
-                          {COLOR_SWATCHES.slice(0, 10).map((c) => (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-bold">
+                          {BG_TYPE_OPTIONS.map((t) => (
                             <button
-                              key={c}
-                              onClick={() => setBgConfig({ ...bgConfig, color2: c })}
-                              className="w-6 h-6 rounded-full border border-slate-300"
-                              style={{ backgroundColor: c }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          グラデーション方向
-                        </label>
-                        <div className="grid grid-cols-3 gap-1.5 text-xs">
-                          {[
-                            { id: 'horizontal', label: '左右 (横)' },
-                            { id: 'vertical', label: '上下 (縦)' },
-                            { id: 'diagonal', label: '斜め' },
-                          ].map((d) => (
-                            <button
-                              key={d.id}
-                              onClick={() => setBgConfig({ ...bgConfig, gradientDir: d.id })}
-                              className={`py-1.5 rounded border font-medium ${
-                                bgConfig.gradientDir === d.id
-                                  ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold'
-                                  : 'bg-white border-slate-200 text-slate-600'
+                              key={t.id}
+                              type="button"
+                              onClick={() => handleSelectBgType(t.id)}
+                              className={`py-1.5 px-1.5 rounded-lg border transition ${
+                                bgConfig.type === t.id
+                                  ? 'bg-sky-600 border-sky-600 text-white shadow-sm'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                               }`}
                             >
-                              {d.label}
+                              {t.label}
                             </button>
                           ))}
                         </div>
                       </div>
-                    </div>
-                  )}
 
-                  <div className="pt-2 border-t border-slate-200">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      背景パターン模様
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5 text-xs">
-                      {[
-                        { id: 'none', label: '模様なし (シンプル)' },
-                        { id: 'slashes', label: 'スピード斜線' },
-                        { id: 'checkered', label: '市松模様 (チェッカー)' },
-                        { id: 'spotlight', label: '中央ハイライト' },
-                      ].map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => setBgConfig({ ...bgConfig, pattern: p.id })}
-                          className={`py-1.5 px-2 rounded border text-left font-medium ${
-                            bgConfig.pattern === p.id
-                              ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold'
-                              : 'bg-white border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                      {/* 2. 背景色（単色 or 複数色エディタ） */}
+                      {bgConfig.type === 'solid' ? (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            背景カラー
+                          </label>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                              type="color"
+                              value={bgConfig.color1}
+                              onChange={(e) =>
+                                updateBgColors([e.target.value, ...curBgColors.slice(1)])
+                              }
+                              className="w-8 h-8 rounded cursor-pointer border border-slate-300"
+                            />
+                            {COLOR_SWATCHES.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateBgColors([c, ...curBgColors.slice(1)])}
+                                className={`w-6 h-6 rounded-full border transition ${
+                                  bgConfig.color1.toLowerCase() === c
+                                    ? 'ring-2 ring-sky-500 scale-110'
+                                    : 'border-slate-300'
+                                }`}
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <label className="text-xs font-bold text-slate-700">
+                              使用する背景色（{curBgColors.length}色 / 最大5色）
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => updateBgColors([...curBgColors].reverse())}
+                                className="text-[11px] bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
+                                title="色の順番を左右/上下反転"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                順番反転
+                              </button>
+                              {curBgColors.length < 5 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextSeed =
+                                      COLOR_SWATCHES[curBgColors.length % COLOR_SWATCHES.length];
+                                    updateBgColors([...curBgColors, nextSeed]);
+                                  }}
+                                  className="text-[11px] bg-sky-600 hover:bg-sky-500 text-white font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-xs transition"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  色を追加
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 複数色ワンクリック配色プリセット */}
+                          <div>
+                            <div className="text-[10px] font-bold text-slate-500 mb-1">
+                              定番の組み合わせ：
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {BG_MULTI_PALETTES.map((pal) => (
+                                <button
+                                  key={pal.name}
+                                  type="button"
+                                  onClick={() => updateBgColors([...pal.colors])}
+                                  className="text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-white hover:border-sky-400 text-slate-700 flex items-center gap-1.5 transition"
+                                >
+                                  <span className="flex items-center -space-x-1">
+                                    {pal.colors.map((pc, pi) => (
+                                      <span
+                                        key={pi}
+                                        className="w-3 h-3 rounded-full border border-slate-300"
+                                        style={{ backgroundColor: pc }}
+                                      />
+                                    ))}
+                                  </span>
+                                  <span>{pal.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 各色ピッカー＆スウォッチ */}
+                          <div className="space-y-2">
+                            {curBgColors.map((col, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-white p-2 rounded-lg border border-slate-200 flex items-center gap-2 flex-wrap"
+                              >
+                                <span className="text-[11px] font-bold text-slate-600 w-9 shrink-0">
+                                  色 {idx + 1}
+                                </span>
+                                <input
+                                  type="color"
+                                  value={col}
+                                  onChange={(e) => {
+                                    const next = [...curBgColors];
+                                    next[idx] = e.target.value;
+                                    updateBgColors(next);
+                                  }}
+                                  className="w-7 h-7 rounded cursor-pointer border border-slate-300 shrink-0"
+                                />
+                                <div className="flex items-center gap-1 flex-wrap flex-1">
+                                  {COLOR_SWATCHES.slice(0, 10).map((c) => (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      onClick={() => {
+                                        const next = [...curBgColors];
+                                        next[idx] = c;
+                                        updateBgColors(next);
+                                      }}
+                                      className={`w-5 h-5 rounded-full border transition ${
+                                        col.toLowerCase() === c
+                                          ? 'ring-2 ring-sky-500 scale-110'
+                                          : 'border-slate-300'
+                                      }`}
+                                      style={{ backgroundColor: c }}
+                                    />
+                                  ))}
+                                </div>
+                                {curBgColors.length > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateBgColors(curBgColors.filter((_, i) => i !== idx))
+                                    }
+                                    className="p-1 text-slate-400 hover:text-red-600 transition shrink-0"
+                                    title="この色を削除"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {bgConfig.type === 'gradient' && (
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                グラデーション方向
+                              </label>
+                              <div className="grid grid-cols-4 gap-1.5 text-xs">
+                                {[
+                                  { id: 'horizontal', label: '左右 (横)' },
+                                  { id: 'vertical', label: '上下 (縦)' },
+                                  { id: 'diagonal', label: '斜め' },
+                                  { id: 'radial', label: '中央放射' },
+                                ].map((d) => (
+                                  <button
+                                    key={d.id}
+                                    type="button"
+                                    onClick={() => setBgConfig({ ...bgConfig, gradientDir: d.id })}
+                                    className={`py-1.5 rounded border font-medium ${
+                                      bgConfig.gradientDir === d.id
+                                        ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold'
+                                        : 'bg-white border-slate-200 text-slate-600'
+                                    }`}
+                                  >
+                                    {d.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {(bgConfig.type === 'stripe_v' ||
+                            bgConfig.type === 'stripe_h' ||
+                            bgConfig.type === 'stripe_diag') && (
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="font-bold text-slate-700">
+                                  しましまの細かさ（繰り返し数）
+                                </span>
+                                <span className="text-sky-700 font-bold">
+                                  {bgConfig.stripeDensity ?? 6}
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min="2"
+                                max="20"
+                                step="1"
+                                value={bgConfig.stripeDensity ?? 6}
+                                onChange={(e) =>
+                                  setBgConfig({
+                                    ...bgConfig,
+                                    stripeDensity: Number(e.target.value),
+                                  })
+                                }
+                                className="w-full accent-sky-600"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 3. 背景パターン模様 */}
+                      <div className="pt-2 border-t border-slate-200 space-y-2.5">
+                        <label className="block text-xs font-bold text-slate-700">
+                          背景パターン模様（{BG_PATTERN_OPTIONS.length}種）
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5 text-xs">
+                          {BG_PATTERN_OPTIONS.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setBgConfig({ ...bgConfig, pattern: p.id })}
+                              className={`py-1.5 px-2 rounded border text-left font-medium transition ${
+                                bgConfig.pattern === p.id
+                                  ? 'bg-sky-50 border-sky-500 text-sky-700 font-bold'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {bgConfig.pattern !== 'none' && (
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                            <div>
+                              <div className="text-[11px] font-bold text-slate-600 mb-1">
+                                模様の色味
+                              </div>
+                              <div className="grid grid-cols-3 gap-1 text-[11px]">
+                                {[
+                                  { id: 'auto', label: '自動' },
+                                  { id: 'light', label: '白系' },
+                                  { id: 'dark', label: '黒系' },
+                                ].map((tone) => (
+                                  <button
+                                    key={tone.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setBgConfig({ ...bgConfig, patternTone: tone.id })
+                                    }
+                                    className={`py-1 rounded border font-bold ${
+                                      (bgConfig.patternTone || 'auto') === tone.id
+                                        ? 'bg-sky-600 text-white border-sky-600'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                                    }`}
+                                  >
+                                    {tone.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-[11px] mb-1">
+                                <span className="font-bold text-slate-600">模様の濃さ</span>
+                                <span className="font-bold text-sky-700">
+                                  {Math.round((bgConfig.patternStrength ?? 1) * 100)}%
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0.4"
+                                max="2.5"
+                                step="0.1"
+                                value={bgConfig.patternStrength ?? 1}
+                                onChange={(e) =>
+                                  setBgConfig({
+                                    ...bgConfig,
+                                    patternStrength: Number(e.target.value),
+                                  })
+                                }
+                                className="w-full accent-sky-600"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
                   <div className="pt-2 border-t border-slate-200 space-y-3">
                     <div>
@@ -4278,7 +4834,9 @@ export default function App() {
                       ハトメ（紐を通す四隅・周囲の金具穴）を表示する
                     </label>
                   </div>
-                </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 横断幕のサイズ指定 */}
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
