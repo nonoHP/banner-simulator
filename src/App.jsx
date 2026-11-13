@@ -1213,6 +1213,9 @@ export default function App() {
   const [shareData, setShareData] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
 
+  // ダウンロード保存形式 ('png' | 'jpg' | 'pdf' | 'ppt')
+  const [exportFormat, setExportFormat] = useState('png');
+
   // 共有リンク (#design=...) からの初期デザイン復元
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2798,7 +2801,7 @@ ${
     return embeddedBlocks.join('\n');
   };
 
-  const buildBannerDownloadFilename = (textItems, suffix = '') => {
+  const buildBannerDownloadFilename = (textItems, suffix = '', format = 'png') => {
     const now = new Date();
     const yy = String(now.getFullYear()).slice(-2);
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -2813,11 +2816,18 @@ ${
       .trim();
 
     const safeBody = (joinedText || 'banner').slice(0, 100).trim();
-    return `${datePrefix}_${safeBody}${suffix}.png`;
+    const extMap = { png: 'png', jpg: 'jpg', pdf: 'pdf', ppt: 'pptx' };
+    const ext = extMap[format] || 'png';
+    return `${datePrefix}_${safeBody}${suffix}.${ext}`;
   };
 
-  // --- SVG → PNG Blob 生成共通ヘルパー ---
-  const svgToPngBlob = async (svgElement, exportWidthPx = 1600) => {
+  // --- SVG → ラスター画像 Blob 生成共通ヘルパー (PNG / JPG) ---
+  const svgToRasterResult = async (
+    svgElement,
+    exportWidthPx = 1600,
+    mimeType = 'image/png',
+    quality = 0.92
+  ) => {
     if (!svgElement) return null;
     if (document.fonts && document.fonts.ready) {
       await document.fonts.ready;
@@ -2859,14 +2869,22 @@ ${
             canvas.width = exportWidthPx;
             canvas.height = exportHeightPx;
             const ctx = canvas.getContext('2d');
+            if (mimeType === 'image/jpeg') {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, exportWidthPx, exportHeightPx);
+            }
             ctx.drawImage(img, 0, 0, exportWidthPx, exportHeightPx);
-            canvas.toBlob((blob) => {
-              if (blob) {
-                resolve(blob);
-              } else {
-                reject(new Error('PNG Blob の生成に失敗しました'));
-              }
-            }, 'image/png');
+            canvas.toBlob(
+              (blob) => {
+                if (blob) {
+                  resolve({ blob, width: exportWidthPx, height: exportHeightPx });
+                } else {
+                  reject(new Error('画像 Blob の生成に失敗しました'));
+                }
+              },
+              mimeType,
+              quality
+            );
           } catch (err) {
             reject(err);
           }
@@ -2879,6 +2897,19 @@ ${
     }
   };
 
+  const svgToPngBlob = async (svgElement, exportWidthPx = 1600) => {
+    const res = await svgToRasterResult(svgElement, exportWidthPx, 'image/png');
+    return res?.blob || null;
+  };
+
+  const blobToDataUrl = (blob) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+      reader.readAsDataURL(blob);
+    });
+
   const triggerBlobDownload = (blob, filename) => {
     const blobUrl = URL.createObjectURL(blob);
     const downloadLink = document.createElement('a');
@@ -2890,17 +2921,107 @@ ${
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
   };
 
-  // --- PNG画像ダウンロード処理 ---
-  const downloadSvgAsPng = async (svgElement, filename, exportWidthPx = 1600) => {
+  // --- マルチフォーマットダウンロード処理 (PNG / JPG / PDF / PPT) ---
+  const downloadSvgAsFormat = async (
+    svgElement,
+    filename,
+    exportWidthPx = 1600,
+    format = 'png'
+  ) => {
     if (!svgElement) return;
     try {
-      const blob = await svgToPngBlob(svgElement, exportWidthPx);
-      if (!blob) throw new Error('PNG生成エラー');
-      triggerBlobDownload(blob, filename);
+      if (format === 'jpg') {
+        const res = await svgToRasterResult(svgElement, exportWidthPx, 'image/jpeg', 0.92);
+        if (!res?.blob) throw new Error('JPG生成エラー');
+        triggerBlobDownload(res.blob, filename);
+        showToast(`${filename} を保存しました`);
+        return;
+      }
+
+      if (format === 'pdf') {
+        const res = await svgToRasterResult(svgElement, exportWidthPx, 'image/png');
+        if (!res?.blob) throw new Error('PDF用画像生成エラー');
+        const dataUrl = await blobToDataUrl(res.blob);
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+        });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const maxW = pageW - margin * 2;
+        const maxH = pageH - margin * 2;
+        const ratio = res.width / res.height;
+        let drawW = maxW;
+        let drawH = drawW / ratio;
+        if (drawH > maxH) {
+          drawH = maxH;
+          drawW = drawH * ratio;
+        }
+        const offsetX = (pageW - drawW) / 2;
+        const offsetY = (pageH - drawH) / 2;
+        pdf.addImage(dataUrl, 'PNG', offsetX, offsetY, drawW, drawH, undefined, 'FAST');
+        const pdfBlob = pdf.output('blob');
+        triggerBlobDownload(pdfBlob, filename);
+        showToast(`${filename} を保存しました`);
+        return;
+      }
+
+      if (format === 'ppt') {
+        const res = await svgToRasterResult(svgElement, exportWidthPx, 'image/png');
+        if (!res?.blob) throw new Error('PPT用画像生成エラー');
+        const dataUrl = await blobToDataUrl(res.blob);
+        const pptxModule = await import('pptxgenjs');
+        const PptxGenJS = pptxModule.default || pptxModule;
+        const pptx = new PptxGenJS();
+        pptx.layout = 'LAYOUT_16x9';
+        const slide = pptx.addSlide();
+        slide.background = { color: 'F8FAFC' };
+        slide.addText(`横断幕デザイン（横 ${bannerWidth}cm × 縦 ${bannerHeight}cm）`, {
+          x: 0.4,
+          y: 0.25,
+          w: 9.2,
+          h: 0.35,
+          fontSize: 13,
+          bold: true,
+          color: '334155',
+          fontFace: 'Meiryo UI',
+        });
+        const boxX = 0.4;
+        const boxY = 0.75;
+        const boxW = 9.2;
+        const boxH = 4.5;
+        const ratio = res.width / res.height;
+        let imgW = boxW;
+        let imgH = imgW / ratio;
+        if (imgH > boxH) {
+          imgH = boxH;
+          imgW = imgH * ratio;
+        }
+        const imgX = boxX + (boxW - imgW) / 2;
+        const imgY = boxY + (boxH - imgH) / 2;
+        slide.addImage({
+          data: dataUrl,
+          x: imgX,
+          y: imgY,
+          w: imgW,
+          h: imgH,
+        });
+        const pptBlob = await pptx.write({ outputType: 'blob' });
+        triggerBlobDownload(pptBlob, filename);
+        showToast(`${filename} を保存しました`);
+        return;
+      }
+
+      const res = await svgToRasterResult(svgElement, exportWidthPx, 'image/png');
+      if (!res?.blob) throw new Error('PNG生成エラー');
+      triggerBlobDownload(res.blob, filename);
       showToast(`${filename} を保存しました`);
     } catch (err) {
       console.error(err);
-      showToast('画像の書き出しに失敗しました');
+      showToast(`${format.toUpperCase()}ファイルの書き出しに失敗しました`);
     }
   };
 
@@ -4556,30 +4677,49 @@ ${
                 {favorites.length}
               </span>
             </button>
+            <div className="flex items-center bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 gap-1.5">
+              <span className="hidden lg:inline text-[11px] text-slate-300 font-medium">
+                形式
+              </span>
+              <select
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value)}
+                aria-label="保存形式を選択"
+                title="保存するファイル形式を選択 (PNG / JPG / PDF / PPT)"
+                className="bg-slate-800 text-white text-xs sm:text-sm font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="png">PNG</option>
+                <option value="jpg">JPG</option>
+                <option value="pdf">PDF</option>
+                <option value="ppt">PPT</option>
+              </select>
+            </div>
             <button
               onClick={() =>
-                downloadSvgAsPng(
+                downloadSvgAsFormat(
                   svgEditRef.current,
-                  buildBannerDownloadFilename(texts),
-                  1800
+                  buildBannerDownloadFilename(texts, '', exportFormat),
+                  1800,
+                  exportFormat
                 )
               }
               className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 transition"
-              title="横断幕デザイン単体を高画質PNGで保存"
+              title={`横断幕デザイン単体を${exportFormat.toUpperCase()}形式で保存`}
             >
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">デザイン保存</span>
             </button>
             <button
               onClick={() =>
-                downloadSvgAsPng(
+                downloadSvgAsFormat(
                   svgScaleRef.current,
-                  buildBannerDownloadFilename(texts, '_比較図'),
-                  1600
+                  buildBannerDownloadFilename(texts, '_比較図', exportFormat),
+                  1600,
+                  exportFormat
                 )
               }
               className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 transition"
-              title="人物とのサイズ比較イメージをPNGで保存"
+              title={`人物とのサイズ比較イメージを${exportFormat.toUpperCase()}形式で保存`}
             >
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">比較図を保存</span>
@@ -8135,18 +8275,19 @@ ${
                                   const card = e.currentTarget.closest('.bg-white.rounded-xl');
                                   const svgEl = card?.querySelector('svg');
                                   if (svgEl) {
-                                    downloadSvgAsPng(
+                                    downloadSvgAsFormat(
                                       svgEl,
-                                      buildBannerDownloadFilename(fav.texts || []),
-                                      1800
+                                      buildBannerDownloadFilename(fav.texts || [], '', exportFormat),
+                                      1800,
+                                      exportFormat
                                     );
                                   }
                                 }}
                                 className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 transition"
-                                title="PNG画像として保存"
+                                title={`${exportFormat.toUpperCase()}形式で保存`}
                               >
                                 <Download className="w-3 h-3" />
-                                PNG
+                                {exportFormat.toUpperCase()}
                               </button>
                               <button
                                 type="button"
