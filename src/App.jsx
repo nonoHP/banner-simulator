@@ -717,6 +717,7 @@ export default function App() {
   // テキストレイヤー
   const [texts, setTexts] = useState(TEMPLATES[0].texts);
   const [selectedTextId, setSelectedTextId] = useState('t1');
+  const [selectedTextBBox, setSelectedTextBBox] = useState(null);
 
   // 表示モード: 'split' (上下並列), 'edit' (デザイン編集拡大), 'scale' (人物サイズ比較拡大)
   const [viewMode, setViewMode] = useState('split');
@@ -958,6 +959,78 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  // 選択中文字のSVG実測バウンディングボックスを計測（アクティブ枠を文字ぴったりに表示するため）
+  useEffect(() => {
+    if (
+      activeLayerType !== 'text' ||
+      !selectedTextId ||
+      !showTextsOnBanner ||
+      viewMode === 'scale'
+    ) {
+      return;
+    }
+    let cancelled = false;
+    const measureSelectedText = () => {
+      if (cancelled) return;
+      const svgEl = svgEditRef.current;
+      if (!svgEl) return;
+      const glyphEl = svgEl.querySelector(`[data-text-glyph="${selectedTextId}"]`);
+      if (!glyphEl || typeof glyphEl.getBBox !== 'function') return;
+      try {
+        const bb = glyphEl.getBBox();
+        if (
+          !Number.isFinite(bb.width) ||
+          bb.width <= 0 ||
+          !Number.isFinite(bb.height) ||
+          bb.height <= 0
+        ) {
+          return;
+        }
+        setSelectedTextBBox((prev) => {
+          if (
+            prev &&
+            prev.id === selectedTextId &&
+            Math.abs(prev.x - bb.x) < 0.2 &&
+            Math.abs(prev.y - bb.y) < 0.2 &&
+            Math.abs(prev.width - bb.width) < 0.2 &&
+            Math.abs(prev.height - bb.height) < 0.2
+          ) {
+            return prev;
+          }
+          return {
+            id: selectedTextId,
+            x: bb.x,
+            y: bb.y,
+            width: bb.width,
+            height: bb.height,
+          };
+        });
+      } catch {
+        // ignore getBBox error when element is hidden
+      }
+    };
+
+    const rafId = requestAnimationFrame(measureSelectedText);
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        if (!cancelled) requestAnimationFrame(measureSelectedText);
+      });
+    }
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+    };
+  }, [
+    activeLayerType,
+    selectedTextId,
+    texts,
+    fontCatalog,
+    bannerWidth,
+    bannerHeight,
+    showTextsOnBanner,
+    viewMode,
+  ]);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -3152,7 +3225,7 @@ ${
                 rot !== 0 || skew !== 0 ? `rotate(${rot}) skewX(${skew})` : undefined;
 
               const boxEst =
-                hasHighlightBar || hasUnderline
+                hasHighlightBar || hasUnderline || isSelected
                   ? estimateBannerTextBox(lines, item.fontSize, item.letterSpacing, item.isVertical)
                   : null;
               const mainFill = hasMetallic ? `url(#${idPrefix}-metal-${item.id})` : item.color;
@@ -3274,7 +3347,10 @@ ${
                       />
                     )}
 
-                    <g filter={hasNeon ? `url(#${idPrefix}-neon-${item.id})` : undefined}>
+                    <g
+                      data-text-glyph={isInteractive ? item.id : undefined}
+                      filter={hasNeon ? `url(#${idPrefix}-neon-${item.id})` : undefined}
+                    >
                       {hasHardShadow && (
                         <g transform={`translate(${hardOffset}, ${hardOffset})`}>
                           {renderTextGlyph({
@@ -3320,20 +3396,102 @@ ${
                         fill={item.underlineColor || item.color}
                       />
                     )}
-                  </g>
 
-                  {isSelected && (
-                    <g className="editor-only-guide">
-                      <circle
-                        cx="0"
-                        cy="0"
-                        r={Math.max(2, w * 0.008)}
-                        fill="#38bdf8"
-                        stroke="#ffffff"
-                        strokeWidth={w * 0.003}
-                      />
-                    </g>
-                  )}
+                    {isSelected && (() => {
+                      const measured =
+                        selectedTextBBox?.id === item.id && selectedTextBBox.width > 0
+                          ? selectedTextBBox
+                          : null;
+                      const baseRect = measured
+                        ? measured
+                        : boxEst
+                          ? {
+                              x: -boxEst.width / 2,
+                              y: -boxEst.height / 2,
+                              width: boxEst.width,
+                              height: boxEst.height,
+                            }
+                          : {
+                              x: -item.fontSize,
+                              y: -item.fontSize * 0.6,
+                              width: item.fontSize * 2,
+                              height: item.fontSize * 1.2,
+                            };
+                      const padX = Math.max(3, Math.min(w, h) * 0.04);
+                      const padY = Math.max(2.5, Math.min(w, h) * 0.035);
+                      const gx = baseRect.x - padX;
+                      const gy = baseRect.y - padY;
+                      const gw = baseRect.width + padX * 2;
+                      const gh = baseRect.height + padY * 2;
+                      const baseStroke = Math.max(0.8, Math.min(w, h) * 0.012);
+                      const dashUnit = Math.max(2, Math.min(w, h) * 0.03);
+                      const handleSize = Math.max(2.6, Math.min(w, h) * 0.042);
+                      const corners = [
+                        [gx, gy],
+                        [gx + gw, gy],
+                        [gx, gy + gh],
+                        [gx + gw, gy + gh],
+                      ];
+
+                      return (
+                        <g className="editor-only-guide" pointerEvents="none">
+                          <rect
+                            x={gx}
+                            y={gy}
+                            width={gw}
+                            height={gh}
+                            rx={padY * 0.4}
+                            fill="#0ea5e9"
+                            fillOpacity="0.1"
+                          />
+                          <rect
+                            x={gx}
+                            y={gy}
+                            width={gw}
+                            height={gh}
+                            rx={padY * 0.4}
+                            fill="none"
+                            stroke="#ffffff"
+                            strokeOpacity="0.92"
+                            strokeWidth={baseStroke * 2.1}
+                          />
+                          <rect
+                            x={gx}
+                            y={gy}
+                            width={gw}
+                            height={gh}
+                            rx={padY * 0.4}
+                            fill="none"
+                            stroke="#0284c7"
+                            strokeWidth={baseStroke * 1.15}
+                            strokeDasharray={`${dashUnit * 1.5},${dashUnit}`}
+                          />
+                          {corners.map(([cx, cy], cIdx) => (
+                            <rect
+                              key={cIdx}
+                              x={cx - handleSize / 2}
+                              y={cy - handleSize / 2}
+                              width={handleSize}
+                              height={handleSize}
+                              rx={handleSize * 0.18}
+                              fill="#ffffff"
+                              stroke="#0284c7"
+                              strokeWidth={baseStroke}
+                            />
+                          ))}
+                          <circle
+                            cx="0"
+                            cy="0"
+                            r={Math.max(1.4, Math.min(w, h) * 0.018)}
+                            fill="#38bdf8"
+                            fillOpacity="0.85"
+                            stroke="#ffffff"
+                            strokeWidth={baseStroke * 0.9}
+                          />
+                        </g>
+                      );
+                    })()}
+                  </g>
                 </g>
               );
             })}
@@ -4108,11 +4266,16 @@ ${
                           }}
                           className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm cursor-pointer transition ${
                             isSel
-                              ? 'bg-sky-50 border-sky-500 text-sky-950 font-bold shadow-sm'
+                              ? 'bg-sky-100/90 border-sky-600 ring-2 ring-sky-400/50 text-sky-950 font-bold shadow-sm'
                               : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           <div className="flex items-center gap-2 truncate min-w-0">
+                            {isSel && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-600 text-white font-bold shrink-0">
+                                選択中
+                              </span>
+                            )}
                             <span
                               className="w-3.5 h-3.5 rounded-full border border-slate-400 shrink-0"
                               style={{ backgroundColor: item.color }}
@@ -4379,9 +4542,12 @@ ${
                 {selectedText && (
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                        <Edit3 className="w-3.5 h-3.5 text-sky-600" />
-                        選択中の文字を編集
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 min-w-0">
+                        <Edit3 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span className="shrink-0">選択中の文字を編集</span>
+                        <span className="text-[10px] bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-0.5 rounded truncate max-w-[120px]">
+                          {selectedText.text.replace(/\n/g, ' ') || '(空)'}
+                        </span>
                       </span>
                       <div className="flex items-center gap-1">
                         <button
