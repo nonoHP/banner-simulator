@@ -3507,7 +3507,7 @@ ${
           </div>
           <div>
             <h1 className="text-base sm:text-lg font-bold tracking-tight flex items-center gap-2">
-              横断幕デザイン＆実寸サイズ感シミュレーター
+              横断幕作成ツール
               <span className="hidden md:inline-block text-xs bg-violet-600/30 text-violet-300 border border-violet-400/40 px-2 py-0.5 rounded-full font-medium">
                 ✨ AIスローガン提案搭載
               </span>
