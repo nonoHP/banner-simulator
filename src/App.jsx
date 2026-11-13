@@ -47,7 +47,8 @@ import {
   Redo2,
   Share2,
   Link2,
-  PlayCircle
+  PlayCircle,
+  ClipboardList
 } from 'lucide-react';
 
 // --- 定数・プリセット定義 ---
@@ -4852,61 +4853,72 @@ ${
         {/* 左側：設定・編集サイドバー */}
         <aside className="w-full lg:w-[430px] xl:w-[460px] bg-white border-r border-slate-200 flex flex-col shrink-0 lg:h-[calc(100vh-56px)]">
           {/* タブナビゲーション */}
-          <div className="grid grid-cols-5 border-b border-slate-200 bg-slate-50 text-[11px] sm:text-xs font-bold">
+          <div className="grid grid-cols-3 sm:grid-cols-6 border-b border-slate-200 bg-slate-50 text-[11px] sm:text-[10px] font-bold leading-tight tracking-tighter">
             <button
               onClick={() => setActiveTab('text')}
-              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
+              className={`py-2.5 sm:py-3 px-0.5 flex flex-col items-center justify-center gap-1 border-b-2 transition text-center ${
                 activeTab === 'text'
                   ? 'border-sky-600 text-sky-700 bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Type className="w-4 h-4" />
+              <Type className="w-4 h-4 shrink-0" />
               <span>文言</span>
             </button>
             <button
               onClick={() => setActiveTab('size_bg')}
-              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
+              className={`py-2.5 sm:py-3 px-0.5 flex flex-col items-center justify-center gap-1 border-b-2 transition text-center ${
                 activeTab === 'size_bg'
                   ? 'border-sky-600 text-sky-700 bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Palette className="w-4 h-4" />
+              <Palette className="w-4 h-4 shrink-0" />
               <span>背景・サイズ</span>
             </button>
             <button
               onClick={() => setActiveTab('ai')}
-              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
+              className={`py-2.5 sm:py-3 px-0.5 flex flex-col items-center justify-center gap-1 border-b-2 transition text-center ${
                 activeTab === 'ai'
                   ? 'border-violet-600 text-violet-700 bg-violet-50/40'
                   : 'border-transparent text-slate-500 hover:text-violet-700'
               }`}
             >
-              <Wand2 className="w-4 h-4 text-violet-600" />
+              <Wand2 className="w-4 h-4 text-violet-600 shrink-0" />
               <span>✨AI文言提案</span>
             </button>
             <button
               onClick={() => setActiveTab('human')}
-              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
+              className={`py-2.5 sm:py-3 px-0.5 flex flex-col items-center justify-center gap-1 border-b-2 transition text-center ${
                 activeTab === 'human'
                   ? 'border-sky-600 text-sky-700 bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Users className="w-4 h-4" />
+              <Users className="w-4 h-4 shrink-0" />
               <span>持ったイメージ</span>
             </button>
             <button
               onClick={() => setActiveTab('template')}
-              className={`py-3 px-1 flex flex-col items-center gap-1 border-b-2 transition ${
+              className={`py-2.5 sm:py-3 px-0.5 flex flex-col items-center justify-center gap-1 border-b-2 transition text-center ${
                 activeTab === 'template'
                   ? 'border-sky-600 text-sky-700 bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 shrink-0" />
               <span>テンプレ・取込</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`py-2.5 sm:py-3 px-0.5 flex flex-col items-center justify-center gap-1 border-b-2 transition text-center ${
+                activeTab === 'overview'
+                  ? 'border-emerald-600 text-emerald-700 bg-emerald-50/60'
+                  : 'border-transparent text-slate-500 hover:text-emerald-700'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4 shrink-0" />
+              <span>全体表示</span>
             </button>
           </div>
 
@@ -7879,6 +7891,613 @@ ${
                 </div>
               </div>
             )}
+
+            {/* === タブ6: 全体表示（現在のデザイン状態一覧ダッシュボード） === */}
+            {activeTab === 'overview' && (() => {
+              const bgTypeLabel =
+                bgConfig.type === 'ai'
+                  ? `AI背景（${bgConfig.aiDesign?.title || 'カスタム背景'}）`
+                  : BG_TYPE_OPTIONS.find((t) => t.id === bgConfig.type)?.label || bgConfig.type;
+              const rawBgColors = getBgColorsFromConfig(bgConfig);
+              const bgColors =
+                bgConfig.type === 'solid'
+                  ? [rawBgColors[0] || bgConfig.color1 || '#ffffff']
+                  : rawBgColors;
+              const bgSplits = getBgSplitPositions(bgConfig, bgColors.length);
+              const patternLabel =
+                BG_PATTERN_OPTIONS.find((p) => p.id === (bgConfig.pattern || 'none'))?.label ||
+                'なし';
+              const patternToneLabel =
+                bgConfig.patternTone === 'light'
+                  ? '白系'
+                  : bgConfig.patternTone === 'dark'
+                    ? '黒系'
+                    : '自動';
+              const borderStyleMap = {
+                none: 'なし',
+                single: '一本線',
+                double: '二重枠',
+                inner_frame: '外周太枠',
+              };
+              const borderLabel = borderStyleMap[bgConfig.borderStyle || 'none'] || 'なし';
+              const holdStyleMap = {
+                hands: '胸の前で持つ',
+                waist: '腰の位置で持つ',
+                high: '頭上に高く掲げる',
+                fence: '屋外フェンス掲示',
+              };
+              const holdStyleLabel = holdStyleMap[holdStyle] || holdStyle;
+              const bgFitMap = {
+                stretch: '枠いっぱい伸縮',
+                cover: '比率維持(切抜)',
+                contain: '比率維持(全体)',
+              };
+              const areaM2 = ((bannerWidth * bannerHeight) / 10000).toFixed(2);
+              const aspectRatioText = `${(bannerWidth / Math.max(1, bannerHeight)).toFixed(2)} : 1`;
+              const plannedFilename = buildBannerDownloadFilename(texts, '', exportFormat);
+
+              const handleCopyOverviewText = async () => {
+                const textSummaryLines = texts.map((t, idx) => {
+                  const effects = getTextEffects(t)
+                    .map((eid) => TEXT_EFFECT_OPTIONS.find((o) => o.id === eid)?.label || eid)
+                    .join('・');
+                  const body = (t.text || '（空白）').replace(/\n/g, ' / ');
+                  return `  ${idx + 1}. 「${body}」 | フォント:${getFontDisplayName(t.fontId)} | ${t.isVertical ? '縦書' : '横書'} | サイズ:${t.fontSize} 字間:${t.letterSpacing ?? 0} | 文字色:${t.color} | フチ:${(t.strokeWidth || 0) > 0 ? `${t.strokeColor}(太さ${t.strokeWidth})` : 'なし'} | 回転:${t.rotation || 0}° 斜体:${t.skewAngle || 0}° | 座標:(${Math.round(t.x * 10) / 10}%, ${Math.round(t.y * 10) / 10}%)${effects ? ` | 効果:${effects}` : ''}`;
+                });
+                const imgSummaryLines = imageLayers.map(
+                  (img, idx) =>
+                    `  ${idx + 1}. ${img.name} | 幅:${img.widthPercent}% | 回転:${img.rotation}° | 不透明度:${img.opacity}% | 順:${img.zOrder === 'behind' ? '文字の背面' : '文字の前面'} | 座標:(${Math.round(img.x * 10) / 10}%, ${Math.round(img.y * 10) / 10}%)`
+                );
+                const fullReport = [
+                  '【横断幕デザイン 全体状態メモ】',
+                  `■ サイズ: 横 ${bannerWidth}cm × 縦 ${bannerHeight}cm (面積 ${areaM2}m² / 比率 ${aspectRatioText})`,
+                  `■ 背景種別: ${bgTypeLabel}`,
+                  `■ 背景カラー: ${bgConfig.type === 'ai' ? `AIデザイン (${bgConfig.aiDesign?.opacity ?? 100}%)` : bgColors.join(', ')}${bgConfig.type !== 'ai' && bgColors.length >= 2 ? ` [境界: ${bgSplits.map((s) => `${Math.round(s)}%`).join(', ')}]` : ''}`,
+                  `■ 模様: ${patternLabel}${bgConfig.pattern && bgConfig.pattern !== 'none' ? ` (${patternToneLabel} / 濃さ${Math.round((bgConfig.patternStrength ?? 1) * 100)}%)` : ''}`,
+                  `■ 枠線: ${borderLabel}${bgConfig.borderStyle && bgConfig.borderStyle !== 'none' ? ` (${bgConfig.borderColor} / 太さ${bgConfig.borderWidth ?? 2})` : ''}`,
+                  `■ ハトメ: ${bgConfig.grommets ? 'あり' : 'なし'}`,
+                  `■ 全体背景画像: ${bgImage ? `${bgImage.name} (${bgImage.naturalWidth}x${bgImage.naturalHeight}px, ${bgFitMap[bgImage.fitMode] || bgImage.fitMode}, 濃さ${bgImage.opacity}%, 暗さ${bgImage.darkOverlay}%)` : 'なし'}`,
+                  `■ 文字レイヤー (${texts.length}件 / 表示:${showTextsOnBanner ? 'ON' : 'OFF'}):`,
+                  ...(textSummaryLines.length > 0 ? textSummaryLines : ['  なし']),
+                  `■ 追加画像レイヤー (${imageLayers.length}件):`,
+                  ...(imgSummaryLines.length > 0 ? imgSummaryLines : ['  なし']),
+                  `■ 人物比較条件: ${personCount}人 / 身長${personHeight}cm / ${holdStyleLabel}`,
+                  `■ 保存設定: ${exportFormat.toUpperCase()} (${plannedFilename})`,
+                ].join('\n');
+
+                try {
+                  if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(fullReport);
+                  } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = fullReport;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                  }
+                  showToast('デザイン全体の仕様テキストをコピーしました');
+                } catch {
+                  showToast('クリップボードへのコピーに失敗しました');
+                }
+              };
+
+              return (
+                <div className="space-y-4" data-testid="overview-panel">
+                  {/* 上部サマリーバナー＆仕様コピー */}
+                  <div className="bg-gradient-to-br from-emerald-50 via-teal-50/70 to-sky-50 border border-emerald-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                          <ClipboardList className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>デザイン全体の状態一覧</span>
+                        </h3>
+                        <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                          サイズ・背景色・全文字のフォント/色/装飾・ロゴ配置・書き出し設定をまとめて確認できます。
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyOverviewText}
+                        data-testid="overview-copy-btn"
+                        className="shrink-0 bg-white hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-300 text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1 transition"
+                        title="現在のデザイン仕様をテキストとしてコピー"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>仕様コピー</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1.5 text-center">
+                      <div className="bg-white/90 rounded-lg border border-emerald-100 py-1.5 px-1">
+                        <div className="text-[10px] text-slate-500">サイズ</div>
+                        <div className="text-[11px] font-extrabold text-slate-800 truncate">
+                          {bannerWidth}×{bannerHeight}
+                        </div>
+                      </div>
+                      <div className="bg-white/90 rounded-lg border border-emerald-100 py-1.5 px-1">
+                        <div className="text-[10px] text-slate-500">文字数</div>
+                        <div className="text-[11px] font-extrabold text-sky-700">
+                          {texts.length}件
+                        </div>
+                      </div>
+                      <div className="bg-white/90 rounded-lg border border-emerald-100 py-1.5 px-1">
+                        <div className="text-[10px] text-slate-500">追加画像</div>
+                        <div className="text-[11px] font-extrabold text-emerald-700">
+                          {imageLayers.length}件
+                        </div>
+                      </div>
+                      <div className="bg-white/90 rounded-lg border border-emerald-100 py-1.5 px-1">
+                        <div className="text-[10px] text-slate-500">保存形式</div>
+                        <div className="text-[11px] font-extrabold text-amber-700">
+                          {exportFormat.toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. 基本サイズ ＆ キャンバス表示状態 */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Grid className="w-3.5 h-3.5 text-sky-600" />
+                        サイズ・表示・人物比較の状態
+                      </h4>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('size_bg')}
+                          className="text-[10px] font-bold text-sky-700 bg-white hover:bg-sky-50 border border-sky-200 px-2 py-0.5 rounded transition"
+                        >
+                          サイズ変更
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('human')}
+                          className="text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded transition"
+                        >
+                          比較調整
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="bg-white rounded-lg border border-slate-200/80 p-2">
+                        <div className="text-[10px] text-slate-500">幕の実寸・比率・面積</div>
+                        <div className="font-bold text-slate-800 mt-0.5">
+                          横 {bannerWidth}cm × 縦 {bannerHeight}cm
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          比率 {aspectRatioText} / {areaM2}m²
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg border border-slate-200/80 p-2">
+                        <div className="text-[10px] text-slate-500">人物比較シチュエーション</div>
+                        <div className="font-bold text-slate-800 mt-0.5">
+                          {personCount}人（身長 {personHeight}cm）
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                          {holdStyleLabel}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                      <span
+                        className={`px-2 py-0.5 rounded-full border ${
+                          showTextsOnBanner
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-300'
+                        }`}
+                      >
+                        文字表示: {showTextsOnBanner ? 'ON' : 'OFF (背景のみ)'}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full border ${
+                          showGrid
+                            ? 'bg-sky-50 text-sky-700 border-sky-200'
+                            : 'bg-white text-slate-500 border-slate-200'
+                        }`}
+                      >
+                        ガイド線: {showGrid ? 'ON' : 'OFF'}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full border ${
+                          showDimensionLines
+                            ? 'bg-sky-50 text-sky-700 border-sky-200'
+                            : 'bg-white text-slate-500 border-slate-200'
+                        }`}
+                      >
+                        寸法ガイド: {showDimensionLines ? 'ON' : 'OFF'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full border bg-white text-slate-600 border-slate-200">
+                        表示モード:{' '}
+                        {viewMode === 'split'
+                          ? '上下分割'
+                          : viewMode === 'edit'
+                            ? '編集拡大'
+                            : '実寸比較'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. 背景・模様・枠線・ハトメ・全体画像 */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Palette className="w-3.5 h-3.5 text-sky-600" />
+                        背景・模様・枠線・ハトメ
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('size_bg')}
+                        className="text-[10px] font-bold text-sky-700 bg-white hover:bg-sky-50 border border-sky-200 px-2 py-0.5 rounded transition"
+                      >
+                        背景を編集
+                      </button>
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-slate-200/80 p-2.5 space-y-2 text-[11px]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500">塗り方・スタイル</span>
+                        <span className="font-bold text-slate-800">{bgTypeLabel}</span>
+                      </div>
+
+                      {bgConfig.type === 'ai' ? (
+                        <div className="flex items-center justify-between gap-2 bg-violet-50 border border-violet-200 rounded-md px-2 py-1 text-violet-900">
+                          <span className="flex items-center gap-1 font-bold truncate">
+                            <Wand2 className="w-3 h-3 text-violet-600 shrink-0" />
+                            {bgConfig.aiDesign?.title || 'AIカスタム背景'}
+                          </span>
+                          <span className="text-[10px] shrink-0">
+                            濃さ {bgConfig.aiDesign?.opacity ?? 100}%
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">配色カラー ({bgColors.length}色)</span>
+                            {bgColors.length >= 2 && (
+                              <span className="text-[10px] text-slate-500">
+                                境界: {bgSplits.map((s) => `${Math.round(s)}%`).join(' / ')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {bgColors.map((col, idx) => (
+                              <span
+                                key={`${col}-${idx}`}
+                                className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-700"
+                              >
+                                <span
+                                  className="w-3 h-3 rounded-sm border border-slate-300 shrink-0"
+                                  style={{ backgroundColor: col }}
+                                />
+                                {col.toUpperCase()}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-slate-100 text-[10px]">
+                        <div className="bg-slate-50 rounded p-1.5">
+                          <div className="text-slate-500">背景模様</div>
+                          <div className="font-bold text-slate-800 truncate">{patternLabel}</div>
+                          {bgConfig.pattern && bgConfig.pattern !== 'none' && (
+                            <div className="text-slate-500">
+                              {patternToneLabel} / {Math.round((bgConfig.patternStrength ?? 1) * 100)}%
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-slate-50 rounded p-1.5">
+                          <div className="text-slate-500">周囲の枠線</div>
+                          <div className="font-bold text-slate-800 flex items-center gap-1">
+                            {bgConfig.borderStyle && bgConfig.borderStyle !== 'none' && (
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0"
+                                style={{ backgroundColor: bgConfig.borderColor || '#000000' }}
+                              />
+                            )}
+                            <span className="truncate">{borderLabel}</span>
+                          </div>
+                          {bgConfig.borderStyle && bgConfig.borderStyle !== 'none' && (
+                            <div className="text-slate-500">太さ {bgConfig.borderWidth ?? 2}</div>
+                          )}
+                        </div>
+                        <div className="bg-slate-50 rounded p-1.5">
+                          <div className="text-slate-500">ハトメ穴</div>
+                          <div
+                            className={`font-bold ${
+                              bgConfig.grommets ? 'text-emerald-700' : 'text-slate-700'
+                            }`}
+                          >
+                            {bgConfig.grommets ? 'あり (表示中)' : 'なし'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 全体背景画像の状態 */}
+                      <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">全体読込画像</span>
+                        {bgImage ? (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <img
+                              src={bgImage.dataUrl}
+                              alt={bgImage.name}
+                              className="w-6 h-6 rounded object-cover border border-slate-200 shrink-0"
+                            />
+                            <div className="text-right min-w-0">
+                              <div className="font-bold text-slate-800 truncate text-[10px]">
+                                {bgImage.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                {bgFitMap[bgImage.fitMode] || bgImage.fitMode} / 濃さ{bgImage.opacity}% / 暗さ{bgImage.darkOverlay}%
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">なし（背景色・模様を使用中）</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. 文字レイヤー全体一覧 */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-sky-600" />
+                        文字レイヤー一覧（{texts.length}件）
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        選択中: {effectiveSelectedTextIds.length}件
+                      </span>
+                    </div>
+
+                    {texts.length === 0 ? (
+                      <div className="bg-white rounded-lg border border-dashed border-slate-300 p-3 text-center text-xs text-slate-500">
+                        文字レイヤーがありません。「文言」タブから追加できます。
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {texts.map((item, idx) => {
+                          const isSelected = effectiveSelectedTextIds.includes(item.id);
+                          const itemEffects = getTextEffects(item);
+                          return (
+                            <div
+                              key={item.id}
+                              data-testid={`overview-text-card-${idx}`}
+                              className={`bg-white rounded-lg border p-2.5 space-y-1.5 transition ${
+                                isSelected
+                                  ? 'border-sky-500 ring-1 ring-sky-200 shadow-xs'
+                                  : 'border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                      #{idx + 1}
+                                    </span>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                      {item.isVertical ? '縦書' : '横書'}
+                                    </span>
+                                    {isSelected && (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
+                                        選択中
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs font-extrabold text-slate-900 mt-1 break-words">
+                                    {item.text ? item.text.replace(/\n/g, ' / ') : '（空白テキスト）'}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveLayerType('text');
+                                    setSelectedTextId(item.id);
+                                    setSelectedTextIds([item.id]);
+                                    setActiveTab('text');
+                                  }}
+                                  className="shrink-0 text-[10px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-600 hover:text-white border border-sky-200 px-2 py-1 rounded transition"
+                                >
+                                  編集
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-600 pt-1 border-t border-slate-100">
+                                <div className="truncate" title={getFontDisplayName(item.fontId)}>
+                                  書体: <span className="font-bold text-slate-800">{getFontDisplayName(item.fontId)}</span>
+                                </div>
+                                <div>
+                                  サイズ: <span className="font-bold text-slate-800">{item.fontSize}</span> / 字間 <span className="font-bold text-slate-800">{item.letterSpacing ?? 0}</span>
+                                </div>
+                                <div className="flex items-center gap-1 truncate">
+                                  <span>色:</span>
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-sm border border-slate-300 shrink-0"
+                                    style={{ backgroundColor: item.color }}
+                                  />
+                                  <span className="font-mono">{(item.color || '').toUpperCase()}</span>
+                                  {(item.strokeWidth || 0) > 0 && (
+                                    <>
+                                      <span className="text-slate-400">/フチ</span>
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-sm border border-slate-300 shrink-0"
+                                        style={{ backgroundColor: item.strokeColor }}
+                                      />
+                                      <span>{item.strokeWidth}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div>
+                                  位置: <span className="font-bold text-slate-800">X {Math.round(item.x * 10) / 10}%</span>・<span className="font-bold text-slate-800">Y {Math.round(item.y * 10) / 10}%</span>
+                                </div>
+                              </div>
+
+                              {(itemEffects.length > 0 || (item.rotation || 0) !== 0 || (item.skewAngle || 0) !== 0) && (
+                                <div className="flex flex-wrap gap-1 pt-0.5">
+                                  {(item.rotation || 0) !== 0 && (
+                                    <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                      回転 {item.rotation > 0 ? `+${item.rotation}°` : `${item.rotation}°`}
+                                    </span>
+                                  )}
+                                  {(item.skewAngle || 0) !== 0 && (
+                                    <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                      斜体 {item.skewAngle > 0 ? `+${item.skewAngle}°` : `${item.skewAngle}°`}
+                                    </span>
+                                  )}
+                                  {itemEffects.map((eid) => {
+                                    const label =
+                                      TEXT_EFFECT_OPTIONS.find((o) => o.id === eid)?.label || eid;
+                                    return (
+                                      <span
+                                        key={eid}
+                                        className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-medium"
+                                      >
+                                        {label}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. 追加ロゴ・イラスト画像レイヤー */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        追加ロゴ・イラスト画像（{imageLayers.length}件）
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('text')}
+                        className="text-[10px] font-bold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded transition"
+                      >
+                        画像管理へ
+                      </button>
+                    </div>
+                    {imageLayers.length === 0 ? (
+                      <div className="bg-white rounded-lg border border-slate-200/80 p-2.5 text-[11px] text-slate-500">
+                        追加されたロゴ・イラスト画像はありません。
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {imageLayers.map((imgItem, idx) => (
+                          <div
+                            key={imgItem.id}
+                            className="bg-white rounded-lg border border-slate-200 p-2 flex items-center justify-between gap-2 text-[11px]"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                src={imgItem.dataUrl}
+                                alt={imgItem.name}
+                                className="w-8 h-8 object-contain rounded bg-slate-100 border border-slate-200 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-800 truncate">
+                                  #{idx + 1} {imgItem.name}
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                  幅 {imgItem.widthPercent}% / 回転 {imgItem.rotation}° / 濃さ {imgItem.opacity}% /{' '}
+                                  {imgItem.zOrder === 'behind' ? '文字背面' : '文字前面'} / X {Math.round(imgItem.x * 10) / 10}%・Y {Math.round(imgItem.y * 10) / 10}%
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedImageId(imgItem.id);
+                                setActiveLayerType('image');
+                                setActiveTab('text');
+                              }}
+                              className="shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white border border-emerald-200 px-2 py-1 rounded transition"
+                            >
+                              編集
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5. 書き出し・保存・共有の現在設定 */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                    <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-amber-600" />
+                      保存形式・お気に入り・共有設定
+                    </h4>
+                    <div className="bg-white rounded-lg border border-slate-200/80 p-2.5 space-y-1.5 text-[11px]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500">選択中の保存形式</span>
+                        <span className="font-bold text-slate-800">
+                          {exportFormat.toUpperCase()} 形式
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">出力ファイル名</span>
+                        <span className="font-mono text-[10px] text-slate-700 truncate">
+                          {plannedFilename}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500">お気に入り保存数</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsFavoritesOpen(true)}
+                          className="font-bold text-pink-600 hover:underline flex items-center gap-1"
+                        >
+                          <Heart className="w-3 h-3" />
+                          <span>{favorites.length}件（比較一覧を開く）</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadSvgAsFormat(
+                            svgEditRef.current,
+                            plannedFilename,
+                            1800,
+                            exportFormat
+                          )
+                        }
+                        className="py-2 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1 shadow-xs transition"
+                      >
+                        <Download className="w-3.5 h-3.5 shrink-0" />
+                        <span>{exportFormat.toUpperCase()}保存</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveFavorite}
+                        className="py-2 px-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-bold flex items-center justify-center gap-1 shadow-xs transition"
+                      >
+                        <Star className="w-3.5 h-3.5 shrink-0" />
+                        <span>お気に入り</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openShareModal}
+                        className="py-2 px-1.5 rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white font-bold flex items-center justify-center gap-1 shadow-xs transition"
+                      >
+                        <Share2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>LINE/共有</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </aside>
 
