@@ -281,6 +281,71 @@ const BG_MULTI_PALETTES = [
   { name: '紫×白', colors: ['#6b21a8', '#ffffff'] },
 ];
 
+const AI_BG_IDEA_CHIPS = [
+  '燃え上がる炎と稲妻の熱い背景',
+  '日本の日の丸と金色の放射光線',
+  '桜吹雪が舞う和風グラデーション',
+  '青空に入道雲と爽やかな光線',
+  'サッカー場の芝生と白ライン',
+  '黒地に金箔と筆のかすれ風',
+];
+
+const sanitizeAiBgSvgInner = (rawSvg, scopePrefix = 'aibg') => {
+  if (typeof rawSvg !== 'string') return null;
+  let inner = rawSvg.trim();
+  const outerMatch = inner.match(/^<svg\b[^>]*>([\s\S]*)<\/svg>$/i);
+  if (outerMatch) {
+    inner = outerMatch[1].trim();
+  }
+  if (!inner) return null;
+
+  inner = inner
+    .replace(/<(script|foreignObject|iframe|object|embed|audio|video|image)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(script|foreignObject|iframe|object|embed|audio|video|image)\b[^>]*\/?>/gi, '')
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, '');
+
+  const idMatches = [];
+  const idRegex = /\bid\s*=\s*(?:"([^"]+)"|'([^']+)')/gi;
+  let m;
+  while ((m = idRegex.exec(inner)) !== null) {
+    const rawId = m[1] || m[2];
+    if (rawId && !idMatches.includes(rawId)) {
+      idMatches.push(rawId);
+    }
+  }
+  idMatches.sort((a, b) => b.length - a.length);
+  idMatches.forEach((rawId, idx) => {
+    const safeNewId = `${scopePrefix}-el-${idx}`;
+    const escaped = rawId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    inner = inner
+      .replace(new RegExp(`(\\bid\\s*=\\s*)(["'])${escaped}\\2`, 'g'), `$1$2${safeNewId}$2`)
+      .replace(new RegExp(`url\\(#${escaped}\\)`, 'g'), `url(#${safeNewId})`)
+      .replace(new RegExp(`((?:xlink:)?href\\s*=\\s*)(["'])#${escaped}\\2`, 'g'), `$1$2#${safeNewId}$2`);
+  });
+
+  if (typeof DOMParser !== 'undefined' && typeof XMLSerializer !== 'undefined') {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(
+        `<svg xmlns="http://www.w3.org/2000/svg">${inner}</svg>`,
+        'image/svg+xml'
+      );
+      if (doc.querySelector('parsererror')) {
+        return null;
+      }
+      const serializer = new XMLSerializer();
+      const serialized = Array.from(doc.documentElement.childNodes)
+        .map((node) => serializer.serializeToString(node))
+        .join('');
+      return serialized || null;
+    } catch {
+      return null;
+    }
+  }
+  return inner;
+};
+
 const TEXT_EFFECT_OPTIONS = [
   { id: 'shadow', label: '立体影 (シャドウ)' },
   { id: 'hard_shadow', label: '3D くっきり影' },
@@ -681,6 +746,12 @@ export default function App() {
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+
+  // AI自由背景デザイン生成用ステート
+  const [aiBgPrompt, setAiBgPrompt] = useState('');
+  const [aiBgIdeas, setAiBgIdeas] = useState([]);
+  const [isAiBgLoading, setIsAiBgLoading] = useState(false);
+  const [aiBgError, setAiBgError] = useState(null);
 
   // フォント検索＆カスタムフォント管理用ステート
   const [fontCatalog, setFontCatalog] = useState(INITIAL_FONT_CATALOG);
@@ -1943,6 +2014,119 @@ ${
     }
   };
 
+  // --- Gemini APIによる自由背景SVGデザイン生成処理 ---
+  const applyAiBgIdea = (idea) => {
+    if (!idea?.svgInner) return;
+    setBgConfig((prev) => ({
+      ...prev,
+      type: 'ai',
+      aiDesign: {
+        title: idea.title || 'AIカスタム背景',
+        styleTag: idea.styleTag || '',
+        description: idea.description || '',
+        prompt: idea.prompt || aiBgPrompt,
+        svgInner: idea.svgInner,
+        viewBoxW: idea.viewBoxW || 1200,
+        viewBoxH: idea.viewBoxH || 300,
+        opacity: prev.type === 'ai' ? (prev.aiDesign?.opacity ?? 100) : 100,
+      },
+    }));
+    showToast(`AI背景「${idea.title || 'カスタムデザイン'}」を適用しました`);
+  };
+
+  const generateAiBackgrounds = async () => {
+    const trimmed = aiBgPrompt.trim();
+    if (!trimmed) {
+      setAiBgError('どんな背景にしたいかのイメージを入力してください。');
+      return;
+    }
+
+    setIsAiBgLoading(true);
+    setAiBgError(null);
+
+    const vbW = 1200;
+    const vbH = Math.max(
+      180,
+      Math.min(2400, Math.round(1200 * (bannerHeight / Math.max(1, bannerWidth))))
+    );
+    const curColors = getBgColorsFromConfig(bgConfig);
+
+    const systemPrompt = `あなたはプロフェッショナルなスポーツ横断幕・グラフィックデザイナー兼 SVG ベクターアーティストです。
+ユーザーのリクエストに応じて、既成ボタン（単色・単純な2色分け・しましま等）にはない自由で迫力・品格のある横断幕用背景デザインを3パターン作成してください。
+
+【SVG生成の厳格ルール】
+1. キャンバス座標系は width=${vbW}, height=${vbH}（viewBox="0 0 ${vbW} ${vbH}" 相当）です。
+2. 各案の "svgInner" には <svg ...> 外枠タグを含めず、SVG内部の要素のみ（例: <defs>...</defs><rect .../><path .../> 等）を有効な XML 構文で出力してください。すべての自己終了タグは必ず /> で閉じてください。
+3. 先頭に必ず全面を覆うベース塗りつぶし（<rect x="0" y="0" width="${vbW}" height="${vbH}" ... />）を置き、透明な隙間が出ないようにしてください。
+4. <linearGradient>, <radialGradient>, <pattern>, <filter>, <feGaussianBlur>, <path>, <polygon>, <circle>, <ellipse>, <rect>, <polyline>, <g> などの純粋なベクター要素を駆使して高品質に表現してください。
+5. <text>, <script>, <foreignObject>, <image>, 外部URL, イベント属性(onclick等)は絶対に含めないでください。
+6. 中央付近にはあとから横断幕の文字が配置されるため、装飾のメリハリをつけつつ全体の視認性・バランスを意識してください。
+7. 3案はそれぞれ「王道・ダイナミック」「スタイリッシュ・洗練」「和風・アート風などのアレンジ」のように変化をつけてください。`;
+
+    const userPrompt = `【作りたい背景のイメージ・要望】: ${trimmed}
+【横断幕の縦横比（SVG座標サイズ）】: 横 ${vbW} × 縦 ${vbH}（実寸 横${bannerWidth}cm × 縦${bannerHeight}cm）
+【参考（現在の選択色）】: ${curColors.join(', ')}${
+      bgConfig.type === 'ai' && bgConfig.aiDesign?.title
+        ? `\n【現在適用中のAI背景タイトル】: ${bgConfig.aiDesign.title}（さらなる調整・別案の参考にしてください）`
+        : ''
+    }`;
+
+    const payload = {
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              title: { type: 'STRING' },
+              styleTag: { type: 'STRING' },
+              description: { type: 'STRING' },
+              svgInner: { type: 'STRING' },
+            },
+            required: ['title', 'styleTag', 'description', 'svgInner'],
+            propertyOrdering: ['title', 'styleTag', 'description', 'svgInner'],
+          },
+        },
+      },
+    };
+
+    try {
+      const parsed = await callGeminiApi(payload);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        throw new Error('AIからの背景提案が空でした。');
+      }
+      const validIdeas = parsed
+        .map((item) => {
+          const clean = sanitizeAiBgSvgInner(item?.svgInner || '', 'tpl');
+          if (!clean) return null;
+          return {
+            title: item.title || 'AIデザイン案',
+            styleTag: item.styleTag || 'カスタム',
+            description: item.description || '',
+            prompt: trimmed,
+            svgInner: clean,
+            viewBoxW: vbW,
+            viewBoxH: vbH,
+          };
+        })
+        .filter(Boolean);
+
+      if (validIdeas.length === 0) {
+        throw new Error('生成されたSVGデータを安全に読み込めませんでした。表現を変えてお試しください。');
+      }
+      setAiBgIdeas(validIdeas);
+      applyAiBgIdea(validIdeas[0]);
+    } catch (err) {
+      console.error(err);
+      setAiBgError(err.message || 'AI背景の生成中にエラーが発生しました。');
+    } finally {
+      setIsAiBgLoading(false);
+    }
+  };
+
   // AI提案をキャンバスへ反映する関数
   const applySuggestionToSelected = (textValue, fontId) => {
     if (!selectedText) {
@@ -2774,6 +2958,27 @@ ${
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-bg-stripe-h)`} />
           ) : curBgConfig.type === 'stripe_diag' ? (
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-bg-stripe-diag)`} />
+          ) : curBgConfig.type === 'ai' && curBgConfig.aiDesign?.svgInner ? (
+            <g>
+              <rect x="0" y="0" width={w} height={h} fill={curBgConfig.color1 || '#ffffff'} />
+              <g opacity={(curBgConfig.aiDesign.opacity ?? 100) / 100}>
+                <svg
+                  x="0"
+                  y="0"
+                  width={w}
+                  height={h}
+                  viewBox={`0 0 ${curBgConfig.aiDesign.viewBoxW || w} ${curBgConfig.aiDesign.viewBoxH || h}`}
+                  preserveAspectRatio="xMidYMid slice"
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      sanitizeAiBgSvgInner(
+                        curBgConfig.aiDesign.svgInner,
+                        `${idPrefix}-aibg`
+                      ) || '',
+                  }}
+                />
+              </g>
+            </g>
           ) : (
             <rect x="0" y="0" width={w} height={h} fill={curBgConfig.color1} />
           )}
@@ -5201,8 +5406,65 @@ ${
                         </div>
                       </div>
 
-                      {/* 2. 背景色（単色 or 複数色エディタ） */}
-                      {bgConfig.type === 'solid' ? (
+                      {/* 2. 背景色（AI背景 or 単色 or 複数色エディタ） */}
+                      {bgConfig.type === 'ai' ? (
+                        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+                              AIデザイン適用中：{bgConfig.aiDesign?.title || 'カスタム背景'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectBgType('solid')}
+                              className="text-[11px] bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold px-2 py-0.5 rounded-lg transition"
+                            >
+                              単色に戻す
+                            </button>
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-[11px] mb-1">
+                              <span className="font-bold text-slate-700">
+                                AI背景の濃さ（文字を読みやすく控えめにもできます）
+                              </span>
+                              <span className="font-bold text-violet-700">
+                                {bgConfig.aiDesign?.opacity ?? 100}%
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="20"
+                              max="100"
+                              step="5"
+                              value={bgConfig.aiDesign?.opacity ?? 100}
+                              onChange={(e) =>
+                                setBgConfig((prev) => ({
+                                  ...prev,
+                                  aiDesign: {
+                                    ...(prev.aiDesign || {}),
+                                    opacity: Number(e.target.value),
+                                  },
+                                }))
+                              }
+                              className="w-full accent-violet-600"
+                              aria-label="AI背景の濃さ"
+                            />
+                          </div>
+                          {(bgConfig.aiDesign?.opacity ?? 100) < 100 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-slate-600">下地色：</span>
+                              <input
+                                type="color"
+                                value={bgConfig.color1}
+                                onChange={(e) =>
+                                  updateBgColors([e.target.value, ...curBgColors.slice(1)])
+                                }
+                                className="w-6 h-6 rounded cursor-pointer border border-slate-300"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : bgConfig.type === 'solid' ? (
                         <div>
                           <label className="block text-xs font-bold text-slate-700 mb-1.5">
                             背景カラー
@@ -5589,6 +5851,142 @@ ${
                           )}
                         </div>
                       )}
+
+                      {/* 2.5 AI自由背景デザイン生成（ボタンにないデザインを作成） */}
+                      <div className="pt-2 border-t border-slate-200">
+                        <div className="bg-gradient-to-br from-violet-50 to-sky-50 border border-violet-200 rounded-xl p-3 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+                              ✨ AIに自由な背景を作ってもらう
+                            </div>
+                            <span className="text-[10px] font-bold text-violet-600 bg-white/80 px-2 py-0.5 rounded-full border border-violet-200">
+                              ボタン外デザイン対応
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-snug">
+                            炎・稲妻・日の丸・桜吹雪・芝生・和柄・青空など、作りたい背景のイメージを自由に入力すると AI が3案デザインします。
+                          </p>
+
+                          <div className="flex flex-wrap gap-1">
+                            {AI_BG_IDEA_CHIPS.map((chip) => (
+                              <button
+                                key={chip}
+                                type="button"
+                                onClick={() => setAiBgPrompt(chip)}
+                                className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                                  aiBgPrompt === chip
+                                    ? 'bg-violet-600 border-violet-600 text-white font-bold'
+                                    : 'bg-white border-violet-200 text-violet-800 hover:bg-violet-100'
+                                }`}
+                              >
+                                {chip}
+                              </button>
+                            ))}
+                          </div>
+
+                          <textarea
+                            rows={2}
+                            value={aiBgPrompt}
+                            onChange={(e) => setAiBgPrompt(e.target.value)}
+                            placeholder="例：黒地に燃え上がる赤い炎と金色の稲妻が走る背景、日本の日の丸と金色集中線など"
+                            className="w-full text-xs border border-violet-200 rounded-lg px-2.5 py-2 bg-white focus:ring-2 focus:ring-violet-400 outline-none"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={generateAiBackgrounds}
+                            disabled={isAiBgLoading}
+                            className="w-full py-2 bg-gradient-to-r from-violet-600 to-sky-600 hover:from-violet-500 hover:to-sky-500 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition"
+                          >
+                            {isAiBgLoading ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>AIが背景デザインを作成中...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="w-3.5 h-3.5" />
+                                <span>✨ AIで背景デザインを作成する（3案）</span>
+                              </>
+                            )}
+                          </button>
+
+                          {aiBgError && (
+                            <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 flex items-start gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                              <span>{aiBgError}</span>
+                            </div>
+                          )}
+
+                          {aiBgIdeas.length > 0 && (
+                            <div className="space-y-2 pt-1">
+                              <div className="text-[11px] font-bold text-slate-700">
+                                AI提案デザイン（クリックで切り替え）
+                              </div>
+                              <div className="space-y-2">
+                                {aiBgIdeas.map((idea, idx) => {
+                                  const isApplied =
+                                    bgConfig.type === 'ai' &&
+                                    bgConfig.aiDesign?.svgInner === idea.svgInner &&
+                                    bgConfig.aiDesign?.title === idea.title;
+                                  const thumbSvg = sanitizeAiBgSvgInner(
+                                    idea.svgInner,
+                                    `aibg-thumb-${idx}`
+                                  );
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => applyAiBgIdea(idea)}
+                                      className={`w-full text-left rounded-lg border p-2 transition space-y-1.5 ${
+                                        isApplied
+                                          ? 'bg-violet-100/70 border-violet-500 ring-1 ring-violet-400'
+                                          : 'bg-white border-slate-200 hover:border-violet-400'
+                                      }`}
+                                    >
+                                      {thumbSvg && (
+                                        <svg
+                                          viewBox={`0 0 ${idea.viewBoxW || 1200} ${idea.viewBoxH || 300}`}
+                                          preserveAspectRatio="xMidYMid slice"
+                                          className="w-full h-12 rounded border border-slate-200 bg-slate-100"
+                                          dangerouslySetInnerHTML={{ __html: thumbSvg }}
+                                        />
+                                      )}
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-bold text-slate-800 truncate">
+                                          {idea.title}
+                                        </span>
+                                        <span
+                                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-0.5 ${
+                                            isApplied
+                                              ? 'bg-violet-600 text-white'
+                                              : 'bg-slate-100 text-slate-600'
+                                          }`}
+                                        >
+                                          {isApplied ? (
+                                            <>
+                                              <Check className="w-3 h-3" />
+                                              適用中
+                                            </>
+                                          ) : (
+                                            'これを適用'
+                                          )}
+                                        </span>
+                                      </div>
+                                      {idea.description && (
+                                        <p className="text-[10px] text-slate-500 line-clamp-2">
+                                          {idea.description}
+                                        </p>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
                       {/* 3. 背景パターン模様 */}
                       <div className="pt-2 border-t border-slate-200 space-y-2.5">
