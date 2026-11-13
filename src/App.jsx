@@ -3,6 +3,7 @@ import {
   Type,
   Palette,
   Maximize2,
+  Minimize2,
   Users,
   Download,
   Plus,
@@ -1535,6 +1536,28 @@ export default function App() {
       setIsLoadingFont(false);
     }
   };
+
+  const renderExpandToggleButton = (targetMode) =>
+    viewMode === 'split' ? (
+      <button
+        type="button"
+        onClick={() => setViewMode(targetMode)}
+        className="text-xs text-sky-600 hover:underline font-bold flex items-center gap-1 ml-1"
+      >
+        <Maximize2 className="w-3.5 h-3.5" />
+        拡大表示
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setViewMode('split')}
+        className="text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 ml-1 transition"
+        title="元の2画面表示に戻す"
+      >
+        <Minimize2 className="w-3.5 h-3.5" />
+        戻す
+      </button>
+    );
 
   // --- テキスト操作関数 ---
   const updateSelectedText = (updates) => {
@@ -5824,15 +5847,7 @@ ${
                     <Grid className="w-3.5 h-3.5 text-slate-500" />
                     中心ガイド線を表示
                   </label>
-                  {viewMode === 'split' && (
-                    <button
-                      onClick={() => setViewMode('edit')}
-                      className="text-xs text-sky-600 hover:underline font-bold flex items-center gap-1"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      拡大表示
-                    </button>
-                  )}
+                  {renderExpandToggleButton('edit')}
                 </div>
               </div>
 
@@ -5920,15 +5935,7 @@ ${
                     <option value="fence">フェンス掲示</option>
                   </select>
 
-                  {viewMode === 'split' && (
-                    <button
-                      onClick={() => setViewMode('scale')}
-                      className="text-xs text-sky-600 hover:underline font-bold flex items-center gap-1 ml-1"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      拡大表示
-                    </button>
-                  )}
+                  {renderExpandToggleButton('scale')}
                 </div>
               </div>
 
