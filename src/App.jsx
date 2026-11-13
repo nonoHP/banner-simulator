@@ -57,6 +57,7 @@ const FONT_CATEGORIES = [
   { id: 'mincho', label: '明朝・伝統' },
   { id: 'pop', label: '丸文字・ポップ' },
   { id: 'design', label: 'デザイン・特殊' },
+  { id: 'transit', label: '鉄道・標識・LED' },
   { id: 'english', label: '欧文・スポーツ' },
 ];
 
@@ -189,6 +190,37 @@ const INITIAL_FONT_CATALOG = [
   { id: 'lobster', name: 'Lobster (王道クラシック筆記体)', googleFamily: 'Lobster', family: "'Lobster', cursive", weight: '400', category: 'english', tags: '英語 筆記体 クラシック 太字 lobster' },
   { id: 'pacifico', name: 'Pacifico (爽やかブラシ筆記体)', googleFamily: 'Pacifico', family: "'Pacifico', cursive", weight: '400', category: 'english', tags: '英語 筆記体 サーフ 爽やか pacifico' },
   { id: 'shrikhand', name: 'Shrikhand (躍動感極太斜体)', googleFamily: 'Shrikhand', family: "'Shrikhand', cursive", weight: '400', category: 'english', tags: '英語 斜体 太字 筆記 shrikhand' },
+
+  // 鉄道・行先表示（方向幕・LED）・道路標識系
+  { id: 'transit-jnr-maru', name: '国鉄すみ丸風 (M PLUS Rounded Bold)', googleFamily: 'M+PLUS+Rounded+1c:wght@700', family: "'M PLUS Rounded 1c', sans-serif", weight: '700', category: 'transit', tags: '電車 鉄道 行先 方向幕 駅名標 国鉄 すみ丸 丸ゴシック 新幹線' },
+  { id: 'transit-koudan-maru', name: '公団・高速丸ゴシック風 (Zen丸 Bold)', googleFamily: 'Zen+Maru+Gothic:wght@700', family: "'Zen Maru Gothic', sans-serif", weight: '700', category: 'transit', tags: '標識 道路標識 公団 高速道路 案内 丸ゴシック' },
+  { id: 'transit-koudan-med', name: '道路案内 中太丸ゴシック (M PLUS Rounded Med)', googleFamily: 'M+PLUS+Rounded+1c:wght@500', family: "'M PLUS Rounded 1c', sans-serif", weight: '500', category: 'transit', tags: '標識 道路標識 高速道路 案内 駅' },
+  { id: 'transit-makugothic', name: '方向幕レトロ角ゴシック (Zen角アンチック)', googleFamily: 'Zen+Kaku+Gothic+Antique:wght@700', family: "'Zen Kaku Gothic Antique', sans-serif", weight: '700', category: 'transit', tags: '電車 鉄道 行先 方向幕 国鉄 私鉄 駅名標' },
+  { id: 'transit-jr-sign', name: 'JR・駅名標 角ゴシック風 (Zen角ゴシック Bold)', googleFamily: 'Zen+Kaku+Gothic+New:wght@700', family: "'Zen Kaku Gothic New', sans-serif", weight: '700', category: 'transit', tags: '電車 鉄道 駅名標 案内サイン JR 新幹線' },
+  { id: 'transit-metro-modern', name: '都市地下鉄サイン風 (M PLUS 1 Bold)', googleFamily: 'M+PLUS+1:wght@700', family: "'M PLUS 1', sans-serif", weight: '700', category: 'transit', tags: '電車 地下鉄 メトロ 新ゴ ゴナ 標識 案内サイン' },
+  { id: 'transit-sign-std', name: '現行 標識・JR標準ゴシック (Noto Sans Bold)', googleFamily: 'Noto+Sans+JP:wght@700', family: "'Noto Sans JP', sans-serif", weight: '700', category: 'transit', tags: '道路標識 標識 ヒラギノ 電車 駅 案内' },
+  { id: 'transit-timetable', name: '駅案内・路線図ゴシック (M PLUS 1p Bold)', googleFamily: 'M+PLUS+1p:wght@700', family: "'M PLUS 1p', sans-serif", weight: '700', category: 'transit', tags: '電車 路線図 時刻表 駅 案内' },
+  { id: 'transit-tokkyu-mincho', name: '旧国鉄・特急 方向幕明朝 (Zenオールド明朝)', googleFamily: 'Zen+Old+Mincho:wght@700', family: "'Zen Old Mincho', serif", weight: '700', category: 'transit', tags: '電車 国鉄 特急 方向幕 明朝 駅名標' },
+  { id: 'transit-led-16', name: '車両側面・発車標 16ドットLED (DotGothic16)', googleFamily: 'DotGothic16', family: "'DotGothic16', sans-serif", weight: '400', category: 'transit', tags: '電車 行先 LED 電光掲示板 発車標 ドット 駅' },
+  { id: 'transit-highway-bold', name: 'Highway Gothic 太字 (高速道路標識 Overpass)', googleFamily: 'Overpass:wght@800', family: "'Overpass', sans-serif", weight: '800', category: 'transit', isEnglishOnly: true, englishSample: 'TOKYO EXPWY 01', tags: '英語 標識 高速道路 highway gothic overpass route' },
+  { id: 'transit-highway', name: 'Highway Gothic 標準 (道路案内 Overpass)', googleFamily: 'Overpass:wght@700', family: "'Overpass', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'ROUTE 246 SHIBUYA', tags: '英語 標識 道路標識 highway gothic overpass' },
+  { id: 'transit-din', name: 'DIN 1451系 標識書体 (欧州鉄道 Gidole)', googleFamily: 'Gidole', family: "'Gidole', sans-serif", weight: '400', category: 'transit', isEnglishOnly: true, englishSample: 'PLATFORM 04 EXPRESS', tags: '英語 鉄道 標識 din 1451 駅 ナンバリング gidole' },
+  { id: 'transit-barlow-semi', name: '駅ナンバリング・VICS DIN風 (Barlow Semi)', googleFamily: 'Barlow+Semi+Condensed:wght@700', family: "'Barlow Semi Condensed', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'JY-17 SHINJUKU', tags: '英語 駅ナンバリング 路線記号 din barlow' },
+  { id: 'transit-roboto-cond', name: '日本道路標識 英数字風 (Roboto Condensed)', googleFamily: 'Roboto+Condensed:wght@700', family: "'Roboto Condensed', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'IC EXIT 120m', tags: '英語 公団 道路標識 長体 時刻表 roboto' },
+  { id: 'transit-archivo-narrow', name: '方向幕ローマ字 長体 (Archivo Narrow)', googleFamily: 'Archivo+Narrow:wght@700', family: "'Archivo Narrow', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'RAPID TOKYO', tags: '英語 電車 方向幕 行先 長体 archivo' },
+  { id: 'transit-pt-narrow', name: '国鉄・JR初期 方向幕ローマ字風 (PT Sans Narrow)', googleFamily: 'PT+Sans+Narrow:wght@700', family: "'PT Sans Narrow', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'UENO / AOMORI', tags: '英語 国鉄 方向幕 行先 長体 pt sans' },
+  { id: 'transit-public-sans', name: '公共・空港・駅サイン (Public Sans Bold)', googleFamily: 'Public+Sans:wght@700', family: "'Public Sans', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'GATE A / NORTH EXIT', tags: '英語 標識 空港 駅 公共サイン public sans' },
+  { id: 'transit-inter-sign', name: '最新駅サイン・案内英字 (Inter Bold)', googleFamily: 'Inter:wght@700', family: "'Inter', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'Transfer Line 02', tags: '英語 駅サイン ピクトグラム inter' },
+  { id: 'transit-jost', name: '地下鉄・路線図 Futura調 (Jost Bold)', googleFamily: 'Jost:wght@700', family: "'Jost', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'METRO LINE 09', tags: '英語 地下鉄 路線図 futura jost' },
+  { id: 'transit-hyperlegible', name: '高視認性 交通案内 (Atkinson Hyperlegible)', googleFamily: 'Atkinson+Hyperlegible:wght@700', family: "'Atkinson Hyperlegible', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: '12:45 LOCAL TRACK 3', tags: '英語 視認性 標識 バリアフリー atkinson' },
+  { id: 'transit-oxanium', name: '車両番号・路線記号 (Oxanium Bold)', googleFamily: 'Oxanium:wght@700', family: "'Oxanium', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'SER.235-1000', tags: '英語 車両番号 新幹線 電車 記号 oxanium' },
+  { id: 'transit-share-tech', name: '系統番号・駅番号プレート (Share Tech)', googleFamily: 'Share+Tech', family: "'Share Tech', sans-serif", weight: '400', category: 'transit', isEnglishOnly: true, englishSample: 'E233-3000 EXPRESS', tags: '英語 駅番号 系統 電車 share tech' },
+  { id: 'transit-doto-black', name: '発車標・車体LED 極太ドット (Doto Black)', googleFamily: 'Doto:wght@900', family: "'Doto', sans-serif", weight: '900', category: 'transit', isEnglishOnly: true, englishSample: 'LIMITED EXP. 18:30', tags: '英語 LED 電光掲示板 ドット 駅 発車標 doto' },
+  { id: 'transit-doto', name: 'LEDマトリクス 電光掲示板 (Doto Bold)', googleFamily: 'Doto:wght@700', family: "'Doto', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'SHINAGAWA 05', tags: '英語 LED 電光掲示板 ドット doto' },
+  { id: 'transit-pixelify', name: '電光掲示板 太ドット英字 (Pixelify Sans)', googleFamily: 'Pixelify+Sans:wght@700', family: "'Pixelify Sans', sans-serif", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'FOR YOKOHAMA', tags: '英語 LED ドット 電車 pixelify' },
+  { id: 'transit-vt323', name: '改札・ホーム 発車標レトロLED (VT323)', googleFamily: 'VT323', family: "'VT323', monospace", weight: '400', category: 'transit', isEnglishOnly: true, englishSample: '10 CARS / TRACK 1', tags: '英語 LED 発車標 電光掲示板 レトロ vt323' },
+  { id: 'transit-share-mono', name: '発車時刻・列車番号 等幅LED (Share Tech Mono)', googleFamily: 'Share+Tech+Mono', family: "'Share Tech Mono', monospace", weight: '400', category: 'transit', isEnglishOnly: true, englishSample: '09:15 NOZOMI 24', tags: '英語 時刻表 列車番号 LED 等幅' },
+  { id: 'transit-ticket', name: '国鉄・硬券切符印字風 (Courier Prime)', googleFamily: 'Courier+Prime:wght@700', family: "'Courier Prime', monospace", weight: '700', category: 'transit', isEnglishOnly: true, englishSample: 'TOKYO -> KYOTO 01', tags: '英語 切符 硬券 国鉄 駅 courier' },
 ];
 
 const SIZE_PRESETS = [
@@ -1169,7 +1201,8 @@ export default function App() {
     const previewSample =
       selectedText?.text.replace(/\n/g, ' ').slice(0, isModal ? 18 : 16) ||
       '必勝・心を一つに！';
-    const needsEnglishSample = f.category === 'english' && !/[A-Za-z0-9]/.test(previewSample);
+    const needsEnglishSample =
+      (f.category === 'english' || f.isEnglishOnly) && !/[A-Za-z0-9]/.test(previewSample);
 
     return (
       <div
@@ -1236,7 +1269,7 @@ export default function App() {
               className={`text-slate-500 truncate ${isModal ? 'text-[10px] leading-tight' : 'text-xs'}`}
               style={{ fontFamily: f.family, fontWeight: f.weight }}
             >
-              VICTORY 2026
+              {f.englishSample || 'VICTORY 2026'}
             </div>
           )}
         </div>
@@ -2503,12 +2536,13 @@ export default function App() {
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans">
       {/* Google Fonts & 追加カスタムフォント 読み込み */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Dela+Gothic+One&family=DotGothic16&family=Hachi+Maru+Pop&family=Kaisei+Decol:wght@700&family=Kaisei+Tokumin:wght@800&family=Klee+One:wght@600&family=Kosugi+Maru&family=M+PLUS+1p:wght@900&family=M+PLUS+Rounded+1c:wght@800&family=Mochiy+Pop+One&family=New+Tegomin&family=Noto+Sans+JP:wght@700;900&family=Noto+Serif+JP:wght@900&family=Oswald:wght@700&family=Potta+One&family=Rampart+One&family=Reggae+One&family=RocknRoll+One&family=Sawarabi+Mincho&family=Shippori+Mincho:wght@800&family=Stick&family=Train+One&family=Yuji+Boku&family=Yuji+Mai&family=Yuji+Syuku&family=Yusei+Magic&family=Zen+Kaku+Gothic+New:wght@900&family=Zen+Maru+Gothic:wght@900&family=Zen+Old+Mincho:wght@900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Dela+Gothic+One&family=DotGothic16&family=Hachi+Maru+Pop&family=Kaisei+Decol:wght@700&family=Kaisei+Tokumin:wght@800&family=Klee+One:wght@600&family=Kosugi+Maru&family=M+PLUS+1p:wght@700;900&family=M+PLUS+Rounded+1c:wght@500;700;800&family=Mochiy+Pop+One&family=New+Tegomin&family=Noto+Sans+JP:wght@700;900&family=Noto+Serif+JP:wght@700;900&family=Oswald:wght@700&family=Potta+One&family=Rampart+One&family=Reggae+One&family=RocknRoll+One&family=Sawarabi+Mincho&family=Shippori+Mincho:wght@800&family=Stick&family=Train+One&family=Yuji+Boku&family=Yuji+Mai&family=Yuji+Syuku&family=Yusei+Magic&family=Zen+Kaku+Gothic+New:wght@700;900&family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Old+Mincho:wght@700;900&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700&family=BIZ+UDPMincho:wght@700&family=Cherry+Bomb+One&family=Chokokutai&family=Darumadrop+One&family=Kaisei+HarunoUmi:wght@700&family=Kaisei+Opti:wght@700&family=Kiwi+Maru:wght@500&family=M+PLUS+2:wght@900&family=Shippori+Antique&family=Zen+Antique&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@800&family=Black+Ops+One&family=Bungee&family=Chakra+Petch:wght@700&family=Graduate&family=Kaushan+Script&family=Montserrat:wght@900&family=Passion+One:wght@700&family=Righteous&family=Russo+One&family=Squada+One&family=Staatliches&family=Teko:wght@700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Zen+Antique+Soft&family=Slackside+One&family=Yomogi&family=Zen+Kurenaido&family=Shizuru&family=M+PLUS+1:wght@900&family=Murecho:wght@900&family=Shippori+Antique+B1&family=IBM+Plex+Sans+JP:wght@700&family=BIZ+UDGothic:wght@700&family=Sawarabi+Gothic&family=WDXL+Lubrifont+JP+N&family=BIZ+UDMincho:wght@700&family=Mochiy+Pop+P+One&family=Tsukimi+Rounded:wght@700&family=Kosugi&family=Palette+Mosaic&family=M+PLUS+1+Code:wght@700&family=Bungee+Shade&family=Bungee+Inline&family=Monoton&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Antique+Soft&family=Slackside+One&family=Yomogi&family=Zen+Kurenaido&family=Shizuru&family=M+PLUS+1:wght@700;900&family=Murecho:wght@900&family=Shippori+Antique+B1&family=IBM+Plex+Sans+JP:wght@700&family=BIZ+UDGothic:wght@700&family=Sawarabi+Gothic&family=WDXL+Lubrifont+JP+N&family=BIZ+UDMincho:wght@700&family=Mochiy+Pop+P+One&family=Tsukimi+Rounded:wght@700&family=Kosugi&family=Palette+Mosaic&family=M+PLUS+1+Code:wght@700&family=Bungee+Shade&family=Bungee+Inline&family=Monoton&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Fjalla+One&family=Saira+Condensed:wght@800&family=Saira+Extra+Condensed:wght@800&family=Pathway+Gothic+One&family=Francois+One&family=BenchNine:wght@700&family=Six+Caps&family=Big+Shoulders+Display:wght@900&family=Big+Shoulders+Stencil+Display:wght@800&family=Antonio:wght@700&family=Titan+One&family=Alfa+Slab+One&family=Ultra&family=Rubik+Mono+One&family=Rubik:wght@900&family=Syne:wght@800&family=Unbounded:wght@900&family=Kanit:wght@800&family=Orbitron:wght@900&family=Audiowide&family=Racing+Sans+One&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Faster+One&family=Bangers&family=Boogaloo&family=Bowlby+One+SC&family=Fugaz+One&family=Lilita+One&family=Luckiest+Guy&family=Permanent+Marker&family=Sedgwick+Ave+Display&family=Rowdies:wght@700&family=Stardos+Stencil:wght@700&family=Wallpoet&family=Press+Start+2P&family=Silkscreen:wght@700&family=Cinzel:wght@900&family=Playfair+Display:wght@900&family=Black+Han+Sans&family=Caveat+Brush&family=Pacifico&family=Lobster&family=Shrikhand&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Overpass:wght@700;800&family=Gidole&family=Barlow+Semi+Condensed:wght@700&family=Roboto+Condensed:wght@700&family=Archivo+Narrow:wght@700&family=PT+Sans+Narrow:wght@700&family=Public+Sans:wght@700&family=Inter:wght@700&family=Jost:wght@700&family=Atkinson+Hyperlegible:wght@700&family=Oxanium:wght@700&family=Zen+Kaku+Gothic+Antique:wght@700&family=Doto:wght@700;900&family=Pixelify+Sans:wght@700&family=VT323&family=Share+Tech+Mono&family=Share+Tech&family=Courier+Prime:wght@700&display=swap');
         ${customFontFacesCss
           .map(
             (cf) =>
