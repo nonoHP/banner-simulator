@@ -41,12 +41,15 @@ import {
   ScanText,
   Camera,
   Key,
-  ExternalLink
+  ExternalLink,
+  Star,
+  Heart
 } from 'lucide-react';
 
 // --- 定数・プリセット定義 ---
 
 const GEMINI_API_KEY_STORAGE = 'banner_sim_gemini_api_key';
+const FAVORITES_STORAGE_KEY = 'banner_sim_favorites_v1';
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.0-flash'];
 
 const FONT_CATEGORIES = [
@@ -572,6 +575,111 @@ export default function App() {
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3200);
+  };
+
+  // お気に入りデザイン保存・比較用ステート
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  const [favoriteCols, setFavoriteCols] = useState(2); // 1 | 2 | 3
+  const [favoriteCompareOnly, setFavoriteCompareOnly] = useState(false);
+  const [favoriteScaleCompare, setFavoriteScaleCompare] = useState(false);
+  const [selectedFavoriteIds, setSelectedFavoriteIds] = useState([]);
+  const [editingFavoriteId, setEditingFavoriteId] = useState(null);
+  const [editingFavoriteTitle, setEditingFavoriteTitle] = useState('');
+
+  const persistFavorites = (nextList) => {
+    try {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(nextList));
+      setFavorites(nextList);
+      return true;
+    } catch (err) {
+      console.error(err);
+      showToast('保存容量の上限に達しました。不要なお気に入りを削除するか画像サイズを小さくしてください');
+      return false;
+    }
+  };
+
+  const handleSaveFavorite = () => {
+    const mainText =
+      (texts.find((t) => t.text?.trim())?.text || '無題デザイン')
+        .replace(/\n/g, ' ')
+        .slice(0, 18);
+    const baseTitle = `${mainText} (${bannerWidth}×${bannerHeight}cm)`;
+    const sameCount = favorites.filter((f) => f.title.startsWith(baseTitle)).length;
+    const title = sameCount > 0 ? `${baseTitle} #${sameCount + 1}` : baseTitle;
+
+    const newFav = {
+      id: 'fav_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      title,
+      createdAt: new Date().toISOString(),
+      width: bannerWidth,
+      height: bannerHeight,
+      bg: { ...bgConfig },
+      bgImage: bgImage ? { ...bgImage } : null,
+      imageLayers: imageLayers.map((img) => ({ ...img })),
+      showTextsOnBanner,
+      texts: texts.map((t) => ({ ...t })),
+    };
+
+    if (persistFavorites([newFav, ...favorites])) {
+      showToast(`お気に入り「${title}」に保存しました`);
+    }
+  };
+
+  const handleDeleteFavorite = (favId) => {
+    const target = favorites.find((f) => f.id === favId);
+    const nextList = favorites.filter((f) => f.id !== favId);
+    if (persistFavorites(nextList)) {
+      setSelectedFavoriteIds((prev) => prev.filter((id) => id !== favId));
+      if (target) showToast(`「${target.title}」を削除しました`);
+    }
+  };
+
+  const handleStartRenameFavorite = (fav) => {
+    setEditingFavoriteId(fav.id);
+    setEditingFavoriteTitle(fav.title);
+  };
+
+  const handleCommitRenameFavorite = (favId) => {
+    const trimmed = editingFavoriteTitle.trim();
+    if (!trimmed) {
+      setEditingFavoriteId(null);
+      return;
+    }
+    const nextList = favorites.map((f) => (f.id === favId ? { ...f, title: trimmed } : f));
+    if (persistFavorites(nextList)) {
+      setEditingFavoriteId(null);
+      showToast('お気に入り名を変更しました');
+    }
+  };
+
+  const toggleFavoriteCompareCheck = (favId) => {
+    setSelectedFavoriteIds((prev) =>
+      prev.includes(favId) ? prev.filter((id) => id !== favId) : [...prev, favId]
+    );
+  };
+
+  const handleLoadFavorite = (fav) => {
+    setBannerWidth(fav.width);
+    setBannerHeight(fav.height);
+    setBgConfig({ ...fav.bg });
+    setBgImage(fav.bgImage ? { ...fav.bgImage } : null);
+    setImageLayers((fav.imageLayers || []).map((img) => ({ ...img })));
+    setShowTextsOnBanner(fav.showTextsOnBanner ?? true);
+    const restoredTexts = (fav.texts || []).map((t) => ({ ...t }));
+    setTexts(restoredTexts);
+    setSelectedTextId(restoredTexts[0]?.id || null);
+    setIsFavoritesOpen(false);
+    showToast(`お気に入り「${fav.title}」を編集キャンバスに読み込みました`);
   };
 
   // --- Gemini APIキー管理・共通API呼び出しヘルパー ---
@@ -1777,11 +1885,19 @@ export default function App() {
   };
 
   // --- 横断幕の共通SVG描画パーツ ---
-  const renderBannerArtwork = (idPrefix = 'edit', isInteractive = false) => {
-    const w = bannerWidth;
-    const h = bannerHeight;
-    const grommets = bgConfig.grommets ? getGrommetPositions(w, h) : [];
-    const bw = bgConfig.borderWidth;
+  const renderBannerArtwork = (idPrefix = 'edit', isInteractive = false, designOverride = null) => {
+    const w = designOverride ? designOverride.width : bannerWidth;
+    const h = designOverride ? designOverride.height : bannerHeight;
+    const curBgConfig = designOverride ? designOverride.bg : bgConfig;
+    const curBgImage = designOverride ? designOverride.bgImage : bgImage;
+    const curImageLayers = designOverride ? designOverride.imageLayers || [] : imageLayers;
+    const curTexts = designOverride ? designOverride.texts || [] : texts;
+    const curShowTexts = designOverride
+      ? (designOverride.showTextsOnBanner ?? true)
+      : showTextsOnBanner;
+
+    const grommets = curBgConfig.grommets ? getGrommetPositions(w, h) : [];
+    const bw = curBgConfig.borderWidth;
 
     const getPreserveAspectRatio = (fitMode) => {
       if (fitMode === 'contain') return 'xMidYMid meet';
@@ -1835,8 +1951,8 @@ export default function App() {
       );
     };
 
-    const behindImages = imageLayers.filter((img) => img.zOrder === 'behind');
-    const frontImages = imageLayers.filter((img) => img.zOrder !== 'behind');
+    const behindImages = curImageLayers.filter((img) => img.zOrder === 'behind');
+    const frontImages = curImageLayers.filter((img) => img.zOrder !== 'behind');
 
     return (
       <g>
@@ -1856,11 +1972,11 @@ export default function App() {
             id={`${idPrefix}-bg-grad`}
             x1="0%"
             y1="0%"
-            x2={bgConfig.gradientDir === 'vertical' ? '0%' : '100%'}
-            y2={bgConfig.gradientDir === 'horizontal' ? '0%' : '100%'}
+            x2={curBgConfig.gradientDir === 'vertical' ? '0%' : '100%'}
+            y2={curBgConfig.gradientDir === 'horizontal' ? '0%' : '100%'}
           >
-            <stop offset="0%" stopColor={bgConfig.color1} />
-            <stop offset="100%" stopColor={bgConfig.color2} />
+            <stop offset="0%" stopColor={curBgConfig.color1} />
+            <stop offset="100%" stopColor={curBgConfig.color2} />
           </linearGradient>
 
           <filter id={`${idPrefix}-drop-shadow`} x="-20%" y="-20%" width="140%" height="140%">
@@ -1917,58 +2033,58 @@ export default function App() {
             y="0"
             width={w}
             height={h}
-            fill={bgConfig.type === 'gradient' ? `url(#${idPrefix}-bg-grad)` : bgConfig.color1}
+            fill={curBgConfig.type === 'gradient' ? `url(#${idPrefix}-bg-grad)` : curBgConfig.color1}
           />
 
           {/* 2. 背景パターン */}
-          {bgConfig.pattern === 'slashes' && (
+          {curBgConfig.pattern === 'slashes' && (
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-slashes)`} />
           )}
-          {bgConfig.pattern === 'checkered' && (
+          {curBgConfig.pattern === 'checkered' && (
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-checkered)`} />
           )}
-          {bgConfig.pattern === 'spotlight' && (
+          {curBgConfig.pattern === 'spotlight' && (
             <rect x="0" y="0" width={w} height={h} fill={`url(#${idPrefix}-pattern-radial)`} />
           )}
 
           {/* 2.5 読み込んだ横断幕全体画像 / 背景画像 (Mode A) */}
-          {bgImage && (
+          {curBgImage && (
             <g>
               <image
-                href={bgImage.dataUrl}
+                href={curBgImage.dataUrl}
                 x="0"
                 y="0"
                 width={w}
                 height={h}
-                preserveAspectRatio={getPreserveAspectRatio(bgImage.fitMode)}
-                opacity={(bgImage.opacity ?? 100) / 100}
+                preserveAspectRatio={getPreserveAspectRatio(curBgImage.fitMode)}
+                opacity={(curBgImage.opacity ?? 100) / 100}
               />
-              {bgImage.darkOverlay !== 0 && (
+              {curBgImage.darkOverlay !== 0 && (
                 <rect
                   x="0"
                   y="0"
                   width={w}
                   height={h}
-                  fill={bgImage.darkOverlay > 0 ? '#000000' : '#ffffff'}
-                  opacity={Math.abs(bgImage.darkOverlay) / 100}
+                  fill={curBgImage.darkOverlay > 0 ? '#000000' : '#ffffff'}
+                  opacity={Math.abs(curBgImage.darkOverlay) / 100}
                 />
               )}
             </g>
           )}
 
           {/* 3. 枠線（ボーダー） */}
-          {bgConfig.borderStyle === 'single' && bw > 0 && (
+          {curBgConfig.borderStyle === 'single' && bw > 0 && (
             <rect
               x={bw * 1.2}
               y={bw * 1.2}
               width={w - bw * 2.4}
               height={h - bw * 2.4}
               fill="none"
-              stroke={bgConfig.borderColor}
+              stroke={curBgConfig.borderColor}
               strokeWidth={bw * 0.8}
             />
           )}
-          {bgConfig.borderStyle === 'double' && bw > 0 && (
+          {curBgConfig.borderStyle === 'double' && bw > 0 && (
             <g>
               <rect
                 x={bw * 1.0}
@@ -1976,7 +2092,7 @@ export default function App() {
                 width={w - bw * 2.0}
                 height={h - bw * 2.0}
                 fill="none"
-                stroke={bgConfig.borderColor}
+                stroke={curBgConfig.borderColor}
                 strokeWidth={bw * 0.65}
               />
               <rect
@@ -1985,12 +2101,12 @@ export default function App() {
                 width={w - bw * 4.4}
                 height={h - bw * 4.4}
                 fill="none"
-                stroke={bgConfig.borderColor}
+                stroke={curBgConfig.borderColor}
                 strokeWidth={bw * 0.3}
               />
             </g>
           )}
-          {bgConfig.borderStyle === 'inner_frame' && bw > 0 && (
+          {curBgConfig.borderStyle === 'inner_frame' && bw > 0 && (
             <g>
               <rect
                 x="0"
@@ -1998,7 +2114,7 @@ export default function App() {
                 width={w}
                 height={h}
                 fill="none"
-                stroke={bgConfig.borderColor}
+                stroke={curBgConfig.borderColor}
                 strokeWidth={bw * 2.2}
               />
             </g>
@@ -2020,8 +2136,8 @@ export default function App() {
           {behindImages.map((imgItem) => renderSingleImageLayer(imgItem))}
 
           {/* 5. テキストレイヤー */}
-          {showTextsOnBanner &&
-            texts.map((item) => {
+          {curShowTexts &&
+            curTexts.map((item) => {
               const fontObj = fontCatalog.find((f) => f.id === item.fontId) || fontCatalog[0];
               const posX = (item.x / 100) * w;
               const posY = (item.y / 100) * h;
@@ -2658,6 +2774,25 @@ export default function App() {
             >
               <ImageIcon className="w-4 h-4" />
               <span className="hidden md:inline">背景画像読込</span>
+            </button>
+            <button
+              onClick={handleSaveFavorite}
+              className="bg-pink-600 hover:bg-pink-500 text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 transition"
+              title="現在のデザインをサイト内のお気に入りに保存して後で比較できます"
+            >
+              <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
+              <span className="hidden sm:inline">お気に入り保存</span>
+            </button>
+            <button
+              onClick={() => setIsFavoritesOpen(true)}
+              className="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white text-xs sm:text-sm font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 transition"
+              title="保存したお気に入りデザインを一覧で並べて比較します"
+            >
+              <Heart className="w-4 h-4 text-pink-400" />
+              <span>比較一覧</span>
+              <span className="bg-pink-500 text-white text-[10px] px-1.5 py-0.5 rounded-full leading-none">
+                {favorites.length}
+              </span>
             </button>
             <button
               onClick={() =>
@@ -4497,7 +4632,15 @@ export default function App() {
                     デザイン編集キャンバス（文字をドラッグして位置移動できます）
                   </h2>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleSaveFavorite}
+                    className="text-xs bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition"
+                  >
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                    お気に入りに保存
+                  </button>
                   <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -4688,6 +4831,302 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* お気に入り一覧・比較モーダル */}
+      {isFavoritesOpen && (() => {
+        const displayedFavorites =
+          favoriteCompareOnly && selectedFavoriteIds.length > 0
+            ? favorites.filter((f) => selectedFavoriteIds.includes(f.id))
+            : favorites;
+        const maxFavWidth = Math.max(...displayedFavorites.map((f) => f.width), 1);
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
+            onClick={() => setIsFavoritesOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[96vw] max-h-[94vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ヘッダー */}
+              <div className="px-4 py-2.5 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Heart className="w-5 h-5 text-pink-400 fill-pink-400 shrink-0" />
+                  <h2 className="text-sm sm:text-base font-bold truncate">
+                    お気に入りデザイン一覧・比較（保存済み {favorites.length} 件）
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveFavorite}
+                    className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
+                  >
+                    <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                    現在のデザインを追加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsFavoritesOpen(false)}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                    title="閉じる"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 比較コントロールバー */}
+              {favorites.length > 0 && (
+                <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
+                      <span className="text-[11px] text-slate-500 px-1.5 font-medium">表示列:</span>
+                      {[1, 2, 3].map((cols) => (
+                        <button
+                          key={cols}
+                          type="button"
+                          onClick={() => setFavoriteCols(cols)}
+                          className={`px-2 py-1 rounded-md font-bold transition ${
+                            favoriteCols === cols
+                              ? 'bg-sky-600 text-white'
+                              : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {cols}列
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setFavoriteScaleCompare((prev) => !prev)}
+                      className={`px-2.5 py-1.5 rounded-lg border font-bold flex items-center gap-1 transition ${
+                        favoriteScaleCompare
+                          ? 'bg-amber-100 border-amber-400 text-amber-900'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                      title="オンにすると横幅(cm)の実寸比率を揃えてサイズ差を比較できます"
+                    >
+                      <Ruler className="w-3.5 h-3.5" />
+                      {favoriteScaleCompare ? '実寸比(cm)で比較中' : '横幅を揃えて表示中'}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={selectedFavoriteIds.length === 0}
+                      onClick={() => setFavoriteCompareOnly((prev) => !prev)}
+                      className={`px-2.5 py-1.5 rounded-lg border font-bold transition disabled:opacity-45 ${
+                        favoriteCompareOnly && selectedFavoriteIds.length > 0
+                          ? 'bg-pink-600 border-pink-600 text-white'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      チェックした案のみ比較 ({selectedFavoriteIds.length}件)
+                    </button>
+                    {selectedFavoriteIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFavoriteIds([]);
+                          setFavoriteCompareOnly(false);
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-slate-800 underline"
+                      >
+                        チェック解除
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500">
+                    ※データはこのブラウザ内（localStorage）に自動保存されます
+                  </p>
+                </div>
+              )}
+
+              {/* 一覧・比較グリッド */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-100/80">
+                {displayedFavorites.length === 0 ? (
+                  <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center space-y-3 py-10">
+                    <div className="w-12 h-12 rounded-full bg-pink-100 text-pink-500 flex items-center justify-center">
+                      <Star className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-700">
+                        まだお気に入りデザインがありません
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        作成した横断幕のパターンを保存して、フォントや配色・サイズ違いを並べて見比べられます。
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSaveFavorite}
+                      className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow flex items-center gap-1.5 transition"
+                    >
+                      <Star className="w-4 h-4 fill-amber-300 text-amber-300" />
+                      今のデザインをお気に入りに保存する
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className={`grid gap-3 ${
+                      favoriteCols === 1
+                        ? 'grid-cols-1'
+                        : favoriteCols === 2
+                          ? 'grid-cols-1 md:grid-cols-2'
+                          : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                    }`}
+                  >
+                    {displayedFavorites.map((fav) => {
+                      const isChecked = selectedFavoriteIds.includes(fav.id);
+                      const isRenaming = editingFavoriteId === fav.id;
+                      const fontNames = Array.from(
+                        new Set(
+                          (fav.texts || []).map((t) => {
+                            const f = fontCatalog.find((fc) => fc.id === t.fontId);
+                            return f ? f.name.split(' (')[0] : t.fontId;
+                          })
+                        )
+                      ).join(', ');
+                      const scaleWidthPercent = favoriteScaleCompare
+                        ? Math.max(18, (fav.width / maxFavWidth) * 100)
+                        : 100;
+
+                      return (
+                        <div
+                          key={fav.id}
+                          className={`bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden transition ${
+                            isChecked ? 'border-pink-500 ring-2 ring-pink-200' : 'border-slate-200'
+                          }`}
+                        >
+                          {/* カードヘッダー */}
+                          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleFavoriteCompareCheck(fav.id)}
+                                className="w-4 h-4 rounded text-pink-600 focus:ring-pink-500 cursor-pointer shrink-0"
+                                title="比較候補としてチェック"
+                              />
+                              {isRenaming ? (
+                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                  <input
+                                    type="text"
+                                    value={editingFavoriteTitle}
+                                    onChange={(e) => setEditingFavoriteTitle(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleCommitRenameFavorite(fav.id);
+                                      if (e.key === 'Escape') setEditingFavoriteId(null);
+                                    }}
+                                    autoFocus
+                                    className="flex-1 min-w-0 px-2 py-0.5 text-xs border border-sky-400 rounded bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCommitRenameFavorite(fav.id)}
+                                    className="px-2 py-0.5 text-[11px] bg-sky-600 text-white rounded font-bold"
+                                  >
+                                    OK
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 min-w-0 flex-1">
+                                  <h3
+                                    className="text-xs font-bold text-slate-800 truncate"
+                                    title={fav.title}
+                                  >
+                                    {fav.title}
+                                  </h3>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartRenameFavorite(fav)}
+                                    className="p-0.5 text-slate-400 hover:text-slate-700 shrink-0"
+                                    title="名前を変更"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            <span className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded shrink-0">
+                              {fav.width} × {fav.height} cm
+                            </span>
+                          </div>
+
+                          {/* 横断幕 高精細SVGプレビュー */}
+                          <div className="p-3 bg-slate-800 flex items-center justify-center min-h-[110px]">
+                            <div
+                              className="flex items-center justify-center transition-all"
+                              style={{ width: `${scaleWidthPercent}%` }}
+                            >
+                              <svg
+                                viewBox={`0 0 ${fav.width} ${fav.height}`}
+                                className="w-full max-h-48 shadow-lg border border-slate-600"
+                                style={{ aspectRatio: `${fav.width} / ${fav.height}` }}
+                              >
+                                {renderBannerArtwork(`fav-${fav.id}`, false, fav)}
+                              </svg>
+                            </div>
+                          </div>
+
+                          {/* メタ情報 ＆ 操作ボタン */}
+                          <div className="px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] bg-white">
+                            <div className="text-slate-500 truncate min-w-0 max-w-full">
+                              書体: <span className="font-medium text-slate-700">{fontNames || 'なし'}</span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleLoadFavorite(fav)}
+                                className="px-2.5 py-1 rounded-md bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center gap-1 transition"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                これを編集
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  const card = e.currentTarget.closest('.bg-white.rounded-xl');
+                                  const svgEl = card?.querySelector('svg');
+                                  if (svgEl) {
+                                    downloadSvgAsPng(
+                                      svgEl,
+                                      `${fav.title.replace(/[\\/:*?"<>|]/g, '_')}.png`,
+                                      1800
+                                    );
+                                  }
+                                }}
+                                className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 transition"
+                                title="PNG画像として保存"
+                              >
+                                <Download className="w-3 h-3" />
+                                PNG
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteFavorite(fav.id)}
+                                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                                title="削除"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
