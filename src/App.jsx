@@ -510,10 +510,12 @@ const NumericValueInput = ({
 }) => {
   const [draft, setDraft] = useState(String(value));
   const [isFocused, setIsFocused] = useState(false);
+  const lastEmittedRef = useRef(value);
 
   useEffect(() => {
-    if (!isFocused) {
+    if (!isFocused || value !== lastEmittedRef.current) {
       setDraft(String(value));
+      lastEmittedRef.current = value;
     }
   }, [value, isFocused]);
 
@@ -531,6 +533,7 @@ const NumericValueInput = ({
     }
     const clamped = Math.max(min, Math.min(max, num));
     const rounded = step >= 1 ? Math.round(clamped) : Math.round(clamped * 10) / 10;
+    lastEmittedRef.current = rounded;
     onChange(rounded);
     setDraft(String(rounded));
   };
@@ -544,6 +547,7 @@ const NumericValueInput = ({
         value={isFocused ? draft : String(value)}
         onFocus={(e) => {
           setIsFocused(true);
+          lastEmittedRef.current = value;
           setDraft(String(value));
           e.target.select();
         }}
@@ -554,6 +558,7 @@ const NumericValueInput = ({
           if (normalized.trim() !== '' && normalized !== '-' && !normalized.endsWith('.')) {
             const parsed = Number(normalized);
             if (Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+              lastEmittedRef.current = parsed;
               onChange(parsed);
             }
           }
@@ -918,6 +923,8 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState(null);
 
   // --- Undo / Redo（ひとつ前に戻る / ひとつ先に進む）履歴管理 ---
+  const cloneDesignSnapshot = (snap) => JSON.parse(JSON.stringify(snap));
+
   const createDesignSnapshot = () => ({
     bannerWidth,
     bannerHeight,
@@ -930,7 +937,7 @@ export default function App() {
 
   const historyRef = useRef(null);
   if (!historyRef.current) {
-    const initialSnap = {
+    const initialSnap = cloneDesignSnapshot({
       bannerWidth: TEMPLATES[0].width,
       bannerHeight: TEMPLATES[0].height,
       bgConfig: TEMPLATES[0].bg,
@@ -938,34 +945,47 @@ export default function App() {
       imageLayers: [],
       texts: TEMPLATES[0].texts,
       showTextsOnBanner: true,
-    };
+    });
     historyRef.current = {
       past: [],
       future: [],
       committed: initialSnap,
       committedKey: JSON.stringify(initialSnap),
       isApplying: false,
+      applyingKey: null,
+      safetyTimer: null,
       timer: null,
     };
   }
   const [historyFlags, setHistoryFlags] = useState({ canUndo: false, canRedo: false });
 
   const applyDesignSnapshot = (snap) => {
-    historyRef.current.isApplying = true;
-    setBannerWidth(snap.bannerWidth);
-    setBannerHeight(snap.bannerHeight);
-    setBgConfig(snap.bgConfig);
-    setBgImage(snap.bgImage);
-    setImageLayers(snap.imageLayers);
-    setTexts(snap.texts);
-    setShowTextsOnBanner(snap.showTextsOnBanner);
-    if (selectedTextId && snap.texts.length > 0 && !snap.texts.some((t) => t.id === selectedTextId)) {
-      setSelectedTextId(snap.texts[0].id);
-      setSelectedTextIds([snap.texts[0].id]);
+    const h = historyRef.current;
+    const cloned = cloneDesignSnapshot(snap);
+    const key = JSON.stringify(cloned);
+    if (h.safetyTimer) {
+      clearTimeout(h.safetyTimer);
+      h.safetyTimer = null;
     }
-    setTimeout(() => {
-      historyRef.current.isApplying = false;
-    }, 0);
+    h.isApplying = true;
+    h.applyingKey = key;
+    setBannerWidth(cloned.bannerWidth);
+    setBannerHeight(cloned.bannerHeight);
+    setBgConfig(cloned.bgConfig);
+    setBgImage(cloned.bgImage);
+    setImageLayers(cloned.imageLayers);
+    setTexts(cloned.texts);
+    setShowTextsOnBanner(cloned.showTextsOnBanner);
+    if (selectedTextId && cloned.texts.length > 0 && !cloned.texts.some((t) => t.id === selectedTextId)) {
+      setSelectedTextId(cloned.texts[0].id);
+      setSelectedTextIds([cloned.texts[0].id]);
+    }
+    // useEffect で applyingKey 一致時に即解除するが、万一同値スキップされた場合の保険
+    h.safetyTimer = setTimeout(() => {
+      h.isApplying = false;
+      h.applyingKey = null;
+      h.safetyTimer = null;
+    }, 200);
   };
 
   const handleUndo = () => {
@@ -974,7 +994,7 @@ export default function App() {
       clearTimeout(h.timer);
       h.timer = null;
     }
-    const currentSnap = createDesignSnapshot();
+    const currentSnap = cloneDesignSnapshot(createDesignSnapshot());
     const currentKey = JSON.stringify(currentSnap);
 
     if (currentKey !== h.committedKey) {
@@ -986,10 +1006,10 @@ export default function App() {
 
     if (h.past.length === 0) return;
     const prevSnap = h.past.pop();
-    h.future.push(h.committed);
-    h.committed = prevSnap;
-    h.committedKey = JSON.stringify(prevSnap);
-    applyDesignSnapshot(prevSnap);
+    h.future.push(cloneDesignSnapshot(h.committed));
+    h.committed = cloneDesignSnapshot(prevSnap);
+    h.committedKey = JSON.stringify(h.committed);
+    applyDesignSnapshot(h.committed);
     setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
   };
 
@@ -1001,29 +1021,44 @@ export default function App() {
     }
     if (h.future.length === 0) return;
     const nextSnap = h.future.pop();
-    h.past.push(h.committed);
-    h.committed = nextSnap;
-    h.committedKey = JSON.stringify(nextSnap);
-    applyDesignSnapshot(nextSnap);
+    h.past.push(cloneDesignSnapshot(h.committed));
+    h.committed = cloneDesignSnapshot(nextSnap);
+    h.committedKey = JSON.stringify(h.committed);
+    applyDesignSnapshot(h.committed);
     setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
   };
 
   const handleUndoRef = useRef(handleUndo);
   const handleRedoRef = useRef(handleRedo);
+  const isModalBlockingShortcutRef = useRef(false);
   handleUndoRef.current = handleUndo;
   handleRedoRef.current = handleRedo;
 
   useEffect(() => {
     const h = historyRef.current;
-    if (h.isApplying) return;
     if (h.timer) {
       clearTimeout(h.timer);
       h.timer = null;
     }
+
+    const currentSnap = cloneDesignSnapshot(createDesignSnapshot());
+    const currentKey = JSON.stringify(currentSnap);
+
+    if (h.applyingKey !== null) {
+      if (currentKey === h.applyingKey) {
+        h.applyingKey = null;
+        h.isApplying = false;
+        if (h.safetyTimer) {
+          clearTimeout(h.safetyTimer);
+          h.safetyTimer = null;
+        }
+        setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
+      }
+      return;
+    }
+    if (h.isApplying) return;
     if (draggingId) return;
 
-    const currentSnap = createDesignSnapshot();
-    const currentKey = JSON.stringify(currentSnap);
     if (currentKey === h.committedKey) {
       setHistoryFlags({ canUndo: h.past.length > 0, canRedo: h.future.length > 0 });
       return;
@@ -1032,11 +1067,11 @@ export default function App() {
     setHistoryFlags({ canUndo: true, canRedo: h.future.length > 0 });
 
     h.timer = setTimeout(() => {
-      if (h.isApplying) return;
-      const latestSnap = createDesignSnapshot();
+      if (h.isApplying || h.applyingKey !== null) return;
+      const latestSnap = cloneDesignSnapshot(createDesignSnapshot());
       const latestKey = JSON.stringify(latestSnap);
       if (latestKey !== h.committedKey) {
-        h.past.push(h.committed);
+        h.past.push(cloneDesignSnapshot(h.committed));
         if (h.past.length > 60) h.past.shift();
         h.committed = latestSnap;
         h.committedKey = latestKey;
@@ -1044,7 +1079,7 @@ export default function App() {
         setHistoryFlags({ canUndo: h.past.length > 0, canRedo: false });
       }
       h.timer = null;
-    }, 300);
+    }, 180);
 
     return () => {
       if (h.timer) {
@@ -1067,6 +1102,7 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
       const active = document.activeElement;
       const isTextEditing =
         active &&
@@ -1075,6 +1111,8 @@ export default function App() {
             !['range', 'checkbox', 'radio', 'color', 'button', 'submit', 'file'].includes(
               active.type
             )));
+      const isNativeUndoField =
+        active && active.getAttribute && active.getAttribute('data-native-undo') === 'true';
 
       if (e.key === 'Escape') {
         const handled = handleEscapeDeselectRef.current?.();
@@ -1086,7 +1124,7 @@ export default function App() {
 
       const isMod = (e.ctrlKey || e.metaKey) && !e.altKey;
       if (!isMod) return;
-      if (isTextEditing) return;
+      if (isNativeUndoField || isModalBlockingShortcutRef.current) return;
 
       const key = (e.key || '').toLowerCase();
       const isZ = key === 'z' || e.code === 'KeyZ';
@@ -1449,6 +1487,10 @@ export default function App() {
     setSelectedTextId(null);
     setSelectedTextIds([]);
   }, []);
+
+  isModalBlockingShortcutRef.current = Boolean(
+    isShareOpen || isFavoritesOpen || ocrResult || editingFavoriteId
+  );
 
   handleEscapeDeselectRef.current = () => {
     if (
@@ -1898,6 +1940,7 @@ export default function App() {
         <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
+          data-native-undo="true"
           value={fontSearchQuery}
           onChange={(e) => setFontSearchQuery(e.target.value)}
           placeholder="フォント名や特徴で検索（例: 筆, 明朝, 極太, 丸, ステンシル, Anton...）"
@@ -4621,12 +4664,12 @@ ${
           </div>
 
           {/* 戻る・進む（Undo / Redo）ボタン */}
-          <div className="flex items-center bg-slate-800 p-1 rounded-lg text-xs font-bold gap-0.5">
+          <div className="flex items-center bg-slate-800 p-1 rounded-lg text-xs font-bold gap-1 border border-slate-700">
             <button
               type="button"
               onClick={handleUndo}
               disabled={!historyFlags.canUndo}
-              className="px-2.5 py-1 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-35 disabled:hover:bg-transparent disabled:cursor-not-allowed transition flex items-center gap-1"
+              className="px-2.5 py-1 rounded-md bg-slate-600 text-white shadow-sm hover:bg-sky-600 disabled:bg-transparent disabled:text-slate-500 disabled:shadow-none disabled:opacity-45 disabled:hover:bg-transparent disabled:cursor-not-allowed transition flex items-center gap-1"
               title="ひとつ前に戻る (Ctrl+Z)"
             >
               <Undo2 className="w-3.5 h-3.5" />
@@ -4636,7 +4679,7 @@ ${
               type="button"
               onClick={handleRedo}
               disabled={!historyFlags.canRedo}
-              className="px-2.5 py-1 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-35 disabled:hover:bg-transparent disabled:cursor-not-allowed transition flex items-center gap-1"
+              className="px-2.5 py-1 rounded-md bg-slate-600 text-white shadow-sm hover:bg-sky-600 disabled:bg-transparent disabled:text-slate-500 disabled:shadow-none disabled:opacity-45 disabled:hover:bg-transparent disabled:cursor-not-allowed transition flex items-center gap-1"
               title="ひとつ先に進む (Ctrl+Y)"
             >
               <Redo2 className="w-3.5 h-3.5" />
@@ -5571,6 +5614,7 @@ ${
                             <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                             <input
                               type="text"
+                              data-native-undo="true"
                               value={customGoogleFontInput}
                               onChange={(e) => setCustomGoogleFontInput(e.target.value)}
                               onKeyDown={(e) => {
@@ -6168,6 +6212,7 @@ ${
                     </div>
                     <input
                       type="text"
+                      data-native-undo="true"
                       value={aiBaseText}
                       onChange={(e) => setAiBaseText(e.target.value)}
                       placeholder="例：絶対勝つ、最後まであきらめないで走れ、仲間を信じる"
@@ -6201,6 +6246,7 @@ ${
                     </div>
                     <input
                       type="text"
+                      data-native-undo="true"
                       value={aiStyleRequest}
                       onChange={(e) => setAiStyleRequest(e.target.value)}
                       placeholder="自由入力：例「相手が圧倒されるような四字熟語」「小学生にもわかりやすい熱い言葉」"
@@ -6958,6 +7004,7 @@ ${
 
                           <textarea
                             rows={2}
+                            data-native-undo="true"
                             value={aiBgPrompt}
                             onChange={(e) => setAiBgPrompt(e.target.value)}
                             placeholder="例：黒地に燃え上がる赤い炎と金色の稲妻が走る背景、日本の日の丸と金色集中線など"
@@ -8248,6 +8295,7 @@ ${
                                 <div className="flex items-center gap-1 flex-1 min-w-0">
                                   <input
                                     type="text"
+                                    data-native-undo="true"
                                     value={editingFavoriteTitle}
                                     onChange={(e) => setEditingFavoriteTitle(e.target.value)}
                                     onKeyDown={(e) => {
